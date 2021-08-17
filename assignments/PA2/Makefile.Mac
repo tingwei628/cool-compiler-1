@@ -4,7 +4,7 @@
 ASSN = 2
 CLASS= cs143
 CLASSDIR= ../..
-LIB= -ll
+LIB= -ll # https://stackoverflow.com/a/2612449
 
 SRC= cool.flex test.cl README 
 CSRC= lextest.cc utilities.cc stringtab.cc handle_flags.cc
