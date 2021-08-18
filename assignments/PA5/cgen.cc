@@ -363,7 +363,7 @@ static void emit_test_collector(ostream &s)
 
 static void emit_gc_check(char *source, ostream &s)
 {
-    if (source != (char*)A1) {
+    if (strcmp(source, (char*)A1) != 0) {
         emit_move(A1, source, s);
     }
     s << JAL << "_gc_check" << endl;

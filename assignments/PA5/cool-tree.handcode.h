@@ -12,7 +12,7 @@
 #define yylineno curr_lineno;
 extern int yylineno;
 
-struct Environment;
+class Environment;
 
 inline Boolean copy_Boolean(Boolean b) {return b; }
 inline void assert_Boolean(Boolean) {}
