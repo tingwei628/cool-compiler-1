@@ -13,7 +13,6 @@
 ///////////////////////////////////////////////////////////////////////
 
 #include "stringtab.h"
-
 #define MAXINT  100000000
 #define WORD_SIZE    4
 #define LOG_WORD_SIZE 2     // for logical shifts
@@ -45,6 +44,72 @@
 #define INTNAME    (char *) "Int"
 #define BOOLNAME   (char *) "Bool"
 #define MAINNAME   (char *) "Main"
+
+#if defined(__AACH64__)
+
+//
+// information about object headers
+//
+#define DEFAULT_OBJFIELDS 3
+#define TAG_OFFSET 0
+#define SIZE_OFFSET 1
+#define DISPTABLE_OFFSET 2
+
+#define INVALID_CLASSTAG -1
+
+#define STRING_SLOTS      1
+#define INT_SLOTS         1
+#define BOOL_SLOTS        1
+
+#define GLOBAL        "\t.globl\t"
+#define ALIGN         "\t.align\t2\n"
+#define WORD          "\t.word\t"
+
+//
+// register names
+//
+#define ZERO "xzr"		// Zero register
+#define ACC  "x0"		// Accumulator
+#define A1   "x1"		// For arguments to prim funcs
+#define SELF "x19"		// Ptr to self (callee saves)
+#define T1   "x9"		// Temporary 1
+#define T2   "x10"		// Temporary 2
+#define T3   "x11"		// Temporary 3
+#define SP   "sp"		// Stack pointer
+#define FP   "x29"		// Frame pointer
+#define RA   "x30"		// Return address
+
+//
+// Opcodes
+//
+#define JALR  "\tblr\t"
+#define JAL   "\tbl\t"
+#define RET   "\tret\t"
+
+#define SW    "\tstr\t"
+#define LW    "\tldr\t"
+#define LI    "\tli\t"
+#define LA    "\tadr\t"
+
+#define MOVE  "\tmov\t"
+#define NEG   "\tneg\t"
+#define ADD   "\tadd\t"
+#define ADDI  "\taddi\t"
+#define ADDU  "\taddu\t"
+#define ADDIU "\taddiu\t"
+#define DIV   "\tdiv\t"
+#define MUL   "\tmul\t"
+#define SUB   "\tsub\t"
+#define SLL   "\tsll\t"
+#define BEQZ  "\tbeqz\t"
+#define BRANCH   "\tb\t"
+#define BEQ      "\tbeq\t"
+#define BNE      "\tbne\t"
+#define BLEQ     "\tble\t"
+#define BLT      "\tblt\t"
+#define BGT      "\tbgt\t"
+
+#else
 
 //
 // information about object headers
@@ -107,3 +172,5 @@
 #define BLEQ     "\tble\t"
 #define BLT      "\tblt\t"
 #define BGT      "\tbgt\t"
+
+#endif

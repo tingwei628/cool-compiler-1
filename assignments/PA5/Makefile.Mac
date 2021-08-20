@@ -49,6 +49,9 @@ change-prot:
 cgen:	${OBJS} parser semant
 	${CC} ${CFLAGS} ${OBJS} ${LIB} -o cgen
 
+cgen_aarch64:	${OBJS} parser semant
+	${CC} ${CFLAGS} -D__AACH64__ ${OBJS} ${LIB} -o cgen
+
 .cc.o:
 	${CC} ${CFLAGS} -c $<
 
