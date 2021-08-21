@@ -219,25 +219,25 @@ static void emit_neg(char *dest, char *src1, ostream& s)
 { s << NEG << dest << " " << src1 << endl; }
 
 static void emit_add(char *dest, char *src1, char *src2, ostream& s)
-{ s << ADD << dest << " " << src1 << " " << src2 << endl; }
+{ s << ADD << dest << ", " << src1 << ", " << src2 << endl; }
 
 static void emit_addu(char *dest, char *src1, char *src2, ostream& s)
-{ s << ADDU << dest << " " << src1 << " " << src2 << endl; }
+{ s << ADDU << dest << ", " << src1 << ", " << src2 << endl; }
 
 static void emit_addiu(char *dest, char *src1, int imm, ostream& s)
-{ s << ADDIU << dest << " " << src1 << " " << imm << endl; }
+{ s << ADDIU << dest << ", " << src1 << ", " << "#" << imm << endl; }
 
 static void emit_div(char *dest, char *src1, char *src2, ostream& s)
-{ s << DIV << dest << " " << src1 << " " << src2 << endl; }
+{ s << DIV << dest << ", " << src1 << ", " << src2 << endl; }
 
 static void emit_mul(char *dest, char *src1, char *src2, ostream& s)
-{ s << MUL << dest << " " << src1 << " " << src2 << endl; }
+{ s << MUL << dest << ", " << src1 << ", " << src2 << endl; }
 
 static void emit_sub(char *dest, char *src1, char *src2, ostream& s)
-{ s << SUB << dest << " " << src1 << " " << src2 << endl; }
+{ s << SUB << dest << ", " << src1 << ", " << src2 << endl; }
 
 static void emit_sll(char *dest, char *src1, int num, ostream& s)
-{ s << SLL << dest << " " << src1 << " " << num << endl; }
+{ s << SLL << dest << ", " << src1 << ", " << "#" << num << endl; }
 
 static void emit_jalr(char *dest, ostream& s)
 { s << JALR << "\t" << dest << endl; }
@@ -274,49 +274,55 @@ static void emit_label_def(int l, ostream &s)
 
 static void emit_beqz(char *source, int label, ostream &s)
 {
-    s << BEQZ << source << " ";
+    s << BEQZ << source << ", ";
     emit_label_ref(label,s);
     s << endl;
 }
 
 static void emit_beq(char *src1, char *src2, int label, ostream &s)
 {
-    s << BEQ << src1 << " " << src2 << " ";
+    s << CMP << src1 << ", " << src2 << endl;
+    s << BEQ << " ";
     emit_label_ref(label,s);
     s << endl;
 }
 
 static void emit_bne(char *src1, char *src2, int label, ostream &s)
 {
-    s << BNE << src1 << " " << src2 << " ";
+    s << CMP << src1 << ", " << src2 << endl;
+    s << BNE << " ";
     emit_label_ref(label,s);
     s << endl;
 }
 
 static void emit_bleq(char *src1, char *src2, int label, ostream &s)
 {
-    s << BLEQ << src1 << " " << src2 << " ";
+    s << CMP << src1 << ", " << src2 << endl;
+    s << BLEQ << " ";
     emit_label_ref(label,s);
     s << endl;
 }
 
 static void emit_blt(char *src1, char *src2, int label, ostream &s)
 {
-    s << BLT << src1 << " " << src2 << " ";
+    s << CMP << src1 << ", " << src2 << endl;
+    s << BLT << " ";
     emit_label_ref(label,s);
     s << endl;
 }
 
 static void emit_blti(char *src1, int imm, int label, ostream &s)
 {
-    s << BLT << src1 << " " << imm << " ";
+    s << CMP << src1 << ", " << "#" << imm << endl;
+    s << BLT << " ";
     emit_label_ref(label,s);
     s << endl;
 }
 
 static void emit_bgti(char *src1, int imm, int label, ostream &s)
 {
-    s << BGT << src1 << " " << imm << " ";
+    s << CMP << src1 << ", " << "#" << imm << endl;
+    s << BGT << " ";
     emit_label_ref(label,s);
     s << endl;
 }

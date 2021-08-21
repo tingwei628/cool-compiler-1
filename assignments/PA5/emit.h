@@ -98,20 +98,21 @@
 #define MOVE  "\tmov\t"
 #define NEG   "\tneg\t"
 #define ADD   "\tadd\t"
-#define ADDI  "\taddi\t"
-#define ADDU  "\taddu\t"
-#define ADDIU "\taddiu\t"
-#define DIV   "\tdiv\t"
+#define ADDI  "\tadd\t"
+#define ADDU  "\tadd\t"
+#define ADDIU "\tadd\t"
+#define DIV   "\tsdiv\t"
 #define MUL   "\tmul\t"
 #define SUB   "\tsub\t"
-#define SLL   "\tsll\t"
-#define BEQZ  "\tbeqz\t"
+#define SLL   "\tlsl\t"
+#define BEQZ  "\tcbz\t"
 #define BRANCH   "\tb\t"
-#define BEQ      "\tbeq\t"
-#define BNE      "\tbne\t"
-#define BLEQ     "\tble\t"
-#define BLT      "\tblt\t"
-#define BGT      "\tbgt\t"
+#define CMP   "\tcmp\t" 
+#define BEQ      "\tb.eq\t"
+#define BNE      "\tb.ne\t"
+#define BLEQ     "\tb.le\t" // less than or equal to
+#define BLT      "\tb.lt\t" // less than
+#define BGT      "\tb.gt\t" // greater than
 
 #else
 
