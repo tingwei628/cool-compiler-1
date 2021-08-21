@@ -172,13 +172,13 @@ void program_class::cgen(ostream &os)
 
 static void emit_load(char *dest_reg, int offset, char *source_reg, ostream& s)
 {
-    s << LW << dest_reg << " " << offset * WORD_SIZE << "(" << source_reg << ")"
+    s << LW << dest_reg << " " << "[" << source_reg << ", " << "#" << offset * WORD_SIZE << "]"
       << endl;
 }
 
 static void emit_store(char *source_reg, int offset, char *dest_reg, ostream& s)
 {
-    s << SW << source_reg << " " << offset * WORD_SIZE << "(" << dest_reg << ")"
+    s << SW << source_reg << " " << "[" << dest_reg << ", " << "#" << offset * WORD_SIZE << "]"
       << endl;
 }
 
@@ -334,7 +334,7 @@ static void emit_branch(int l, ostream& s)
 static void emit_push(char *reg, ostream& str)
 {
     emit_store(reg,0,SP,str);
-    emit_addiu(SP,SP,-4,str);
+    emit_addiu(SP,SP,-8,str);
 }
 
 //
@@ -359,7 +359,7 @@ static void emit_test_collector(ostream &s)
     emit_move(ACC, SP, s); // stack end
     emit_move(A1, ZERO, s); // allocate nothing
     s << JAL << gc_collect_names[cgen_Memmgr] << endl;
-    emit_addiu(SP,SP,4,s);
+    emit_addiu(SP,SP,8,s);
     emit_load(ACC,0,SP,s);
 }
 
@@ -1191,6 +1191,55 @@ void CgenClassTable::code_prototypes()
     }
 }
 
+#if defined(__AACH64__)
+
+void CgenClassTable::code_initializers()
+{
+    for(std::vector<Class_>::size_type i = 0; i < cls_ordered.size(); i++) {
+        Class_ cls = cls_ordered[i];
+
+        str << cls->get_name() << CLASSINIT_SUFFIX << LABEL;
+
+        emit_addiu(SP, SP, -24, str);
+        emit_store(FP, 3, SP, str);
+        emit_store(SELF, 2, SP, str);
+        emit_store(RA, 1, SP, str);
+        emit_addiu(FP, SP, 8, str);
+        emit_move(SELF, ACC, str);
+
+        if (cls->get_name() != Object) {
+            // initialize parent class first
+            str << "\tjal " << cls->get_parent() << CLASSINIT_SUFFIX << endl;
+        }
+
+        Environment env;
+        env.set_cls(cls);
+        for (auto attr : cls->all_attrs) {
+            env.add_cls_attr(attr);
+        }
+
+        Features features = cls->get_features();
+        for (int i = features->first(); features->more(i); i = features->next(i)) {
+            attr_class *at = dynamic_cast<attr_class *>(features->nth(i));
+
+            if (at && !at->get_init()->is_empty()) {
+                at->get_init()->code(str, env);
+                emit_store(ACC, DEFAULT_OBJFIELDS + env.get_cls_attr_pos(at->get_name()), SELF, str);
+            }
+        }
+
+        emit_move(ACC, SELF, str);
+        emit_load(FP, 3, SP, str);
+        emit_load(SELF, 2, SP, str);
+        emit_load(RA, 1, SP, str);
+        emit_addiu(SP, SP, 24, str);
+
+        emit_return(str);
+    }
+}
+
+#else
+
 void CgenClassTable::code_initializers()
 {
     for(std::vector<Class_>::size_type i = 0; i < cls_ordered.size(); i++) {
@@ -1235,6 +1284,8 @@ void CgenClassTable::code_initializers()
         emit_return(str);
     }
 }
+
+#endif
 
 void CgenClassTable::code_methods()
 {
@@ -1338,13 +1389,13 @@ void method_class::code(ostream &s, Environment &env)
     s << LABEL;
 
     // make space in the stack
-    emit_addiu(SP, SP, -(DEFAULT_OBJFIELDS * 4), s);
+    emit_addiu(SP, SP, -(DEFAULT_OBJFIELDS * 8), s);
     // save old $fp, self and $ra values
     emit_store(FP, 3, SP, s);
     emit_store(SELF, 2, SP, s);
     emit_store(RA, 1, SP, s);
     // set fp to point to old $ra
-    emit_addiu(FP, SP, 4, s);
+    emit_addiu(FP, SP, 8, s);
     // move acc to self
     emit_move(SELF, ACC, s);
 
@@ -1360,7 +1411,7 @@ void method_class::code(ostream &s, Environment &env)
     emit_load(RA, 1, SP, s);
 
     // destroy the stack frame
-    emit_addiu(SP, SP, (DEFAULT_OBJFIELDS + env.get_mth_args_size()) * 4, s);
+    emit_addiu(SP, SP, (DEFAULT_OBJFIELDS + env.get_mth_args_size()) * 8, s);
     env.clear_mth_args();
 
     s << RET << "\n";
@@ -1376,7 +1427,7 @@ void assign_class::code(ostream &s, Environment &env) {
         emit_store(ACC, offset, SP, s);
 
         if (cgen_Memmgr == GC_GENGC) {
-            emit_addiu(A1, SP, 4 * offset, s);
+            emit_addiu(A1, SP, 8 * offset, s);
             emit_gc_assign(s);
         }
         return;
@@ -1631,7 +1682,7 @@ void typcase_class::code(ostream &s, Environment &env) {
     emit_label_def(label_end, s);
 
     // pop expr from the stack
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
 }
 
 void block_class::code(ostream &s, Environment &env) {
@@ -1658,7 +1709,7 @@ void let_class::code(ostream &s, Environment &env) {
 
     body->code(s, env);
 
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
     env.pop_stack_symbol();
 }
 
@@ -1673,7 +1724,7 @@ void plus_class::code(ostream &s, Environment &env) {
     emit_jal("Object.copy", s);
 
     // $t1 = stack_pop(); $t1 points to e1 object
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
     emit_load(T1, 0, SP, s);
     env.pop_stack_symbol();
 
@@ -1699,7 +1750,7 @@ void sub_class::code(ostream &s, Environment &env) {
     e2->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
     emit_load(T1, 0, SP, s);
     env.pop_stack_symbol();
 
@@ -1720,7 +1771,7 @@ void mul_class::code(ostream &s, Environment &env) {
     e2->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
     emit_load(T1, 0, SP, s);
     env.pop_stack_symbol();
 
@@ -1741,7 +1792,7 @@ void divide_class::code(ostream &s, Environment &env) {
     e2->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
     emit_load(T1, 0, SP, s);
     env.pop_stack_symbol();
 
@@ -1770,7 +1821,7 @@ void lt_class::code(ostream &s, Environment &env) {
 
     e2->code(s, env);
 
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
     emit_load(T1, 0, SP, s);
     env.pop_stack_symbol();
 
@@ -1793,7 +1844,7 @@ void eq_class::code(ostream &s, Environment &env) {
 
     e2->code(s, env);
 
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
     emit_load(T1, 0, SP, s);
     env.pop_stack_symbol();
 
@@ -1819,7 +1870,7 @@ void leq_class::code(ostream &s, Environment &env) {
 
     e2->code(s, env);
 
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
     emit_load(T1, 0, SP, s);
     env.pop_stack_symbol();
 
@@ -1885,7 +1936,7 @@ void new__class::code(ostream &s, Environment &env) {
     emit_jal("Object.copy", s);
 
     // pop old pointer from the stack to $t1
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu(SP, SP, 8, s);
     emit_load(T1, 0, SP, s);
 
     // $t1 += 1 so it now points to SELF_TYPE_CLASS_init

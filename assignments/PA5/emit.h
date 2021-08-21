@@ -14,8 +14,8 @@
 
 #include "stringtab.h"
 #define MAXINT  100000000
-#define WORD_SIZE    4
-#define LOG_WORD_SIZE 2     // for logical shifts
+// #define WORD_SIZE    4
+// #define LOG_WORD_SIZE 2     // for logical shifts
 
 // Global names
 #define CLASSNAMETAB         "class_nameTab"
@@ -50,6 +50,10 @@
 //
 // information about object headers
 //
+
+#define WORD_SIZE    8
+#define LOG_WORD_SIZE 2     // for logical shifts
+
 #define DEFAULT_OBJFIELDS 3
 #define TAG_OFFSET 0
 #define SIZE_OFFSET 1
@@ -62,8 +66,8 @@
 #define BOOL_SLOTS        1
 
 #define GLOBAL        "\t.globl\t"
-#define ALIGN         "\t.align\t2\n"
-#define WORD          "\t.word\t"
+#define ALIGN         "\t.align\t3\n"
+#define WORD          "\t.quad\t"
 
 //
 // register names
@@ -88,7 +92,7 @@
 
 #define SW    "\tstr\t"
 #define LW    "\tldr\t"
-#define LI    "\tli\t"
+#define LI    "\tmov\t"
 #define LA    "\tadr\t"
 
 #define MOVE  "\tmov\t"
@@ -114,6 +118,10 @@
 //
 // information about object headers
 //
+
+#define WORD_SIZE    4
+#define LOG_WORD_SIZE 2     // for logical shifts
+
 #define DEFAULT_OBJFIELDS 3
 #define TAG_OFFSET 0
 #define SIZE_OFFSET 1
