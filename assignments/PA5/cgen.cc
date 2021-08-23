@@ -183,13 +183,13 @@ static void emit_store(char *source_reg, int offset, char *dest_reg, ostream& s)
 }
 
 static void emit_load_imm(char *dest_reg, int val, ostream& s)
-{ s << LI << dest_reg << " " << val << endl; }
+{ s << LI << dest_reg << ", " << "#" << val << endl; }
 
 static void emit_load_address(char *dest_reg, char *address, ostream& s)
-{ s << LA << dest_reg << " " << address << endl; }
+{ s << LA << dest_reg << ", " << address << endl; }
 
 static void emit_partial_load_address(char *dest_reg, ostream& s)
-{ s << LA << dest_reg << " "; }
+{ s << LA << dest_reg << ", "; }
 
 static void emit_load_bool(char *dest, const BoolConst& b, ostream& s)
 {
@@ -213,10 +213,10 @@ static void emit_load_int(char *dest, IntEntry *i, ostream& s)
 }
 
 static void emit_move(char *dest_reg, char *source_reg, ostream& s)
-{ s << MOVE << dest_reg << " " << source_reg << endl; }
+{ s << MOVE << dest_reg << ", " << source_reg << endl; }
 
 static void emit_neg(char *dest, char *src1, ostream& s)
-{ s << NEG << dest << " " << src1 << endl; }
+{ s << NEG << dest << ", " << src1 << endl; }
 
 static void emit_add(char *dest, char *src1, char *src2, ostream& s)
 { s << ADD << dest << ", " << src1 << ", " << src2 << endl; }
@@ -1317,7 +1317,7 @@ void CgenClassTable::code_methods()
         }
     }
 }
-
+// START code generation
 void CgenClassTable::code()
 {
     if (cgen_debug) cout << "coding global data" << endl;

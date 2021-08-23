@@ -51,7 +51,7 @@
 // information about object headers
 //
 
-#define WORD_SIZE    8
+#define WORD_SIZE    4
 #define LOG_WORD_SIZE 2     // for logical shifts
 
 #define DEFAULT_OBJFIELDS 3
@@ -66,8 +66,8 @@
 #define BOOL_SLOTS        1
 
 #define GLOBAL        "\t.globl\t"
-#define ALIGN         "\t.align\t3\n"
-#define WORD          "\t.quad\t"
+#define ALIGN         "\t.align\t2\n"
+#define WORD          "\t.word\t"
 
 //
 // register names
