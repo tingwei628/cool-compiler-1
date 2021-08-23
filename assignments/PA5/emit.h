@@ -45,7 +45,7 @@
 #define BOOLNAME   (char *) "Bool"
 #define MAINNAME   (char *) "Main"
 
-#if defined(__AACH64__)
+#if defined(AARCH64)
 
 //
 // information about object headers

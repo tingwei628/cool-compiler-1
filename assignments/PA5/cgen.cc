@@ -168,7 +168,7 @@ void program_class::cgen(ostream &os)
 //
 //////////////////////////////////////////////////////////////////////////////
 
-#if defined(__AACH64__)
+#if defined(AARCH64)
 
 static void emit_load(char *dest_reg, int offset, char *source_reg, ostream& s)
 {
@@ -1197,7 +1197,7 @@ void CgenClassTable::code_prototypes()
     }
 }
 
-#if defined(__AACH64__)
+#if defined(AARCH64)
 
 void CgenClassTable::code_initializers()
 {
@@ -1387,7 +1387,7 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //*****************************************************************
 //
 
-#if defined(__AACH64__)
+#if defined(AARCH64)
 
 void method_class::code(ostream &s, Environment &env)
 {

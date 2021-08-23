@@ -20,15 +20,16 @@ LSRC= Makefile
 OBJS= ${CFIL:.cc=.o}
 OUTPUT= good.output bad.output
 
-
 CPPINCLUDE= -I. -I${CLASSDIR}/include/PA${ASSN} -I${CLASSDIR}/src/PA${ASSN}
 
 
 FFLAGS = -d8 -ocool-lex.cc
 BFLAGS = -d -v -y -b cool --debug -p cool_yy
 
-CC=g++
-CFLAGS=-std=c++11 -g -Wall -Wno-unused -Wno-write-strings -Wno-deprecated -Wno-reserved-user-defined-literal ${CPPINCLUDE} -DDEBUG
+#CC=g++
+#CFLAGS=-std=c++11 -g -Wall -Wno-unused -Wno-write-strings -Wno-deprecated -Wno-reserved-user-defined-literal ${CPPINCLUDE} -DDEBUG
+CC=$$CXX
+CFLAGS=-std=c++11 -g -Wall -Wno-unused -Wno-write-strings -Wno-deprecated -Wno-nonnull-compare -Wno-literal-suffix ${CPPINCLUDE} -DAARCH64 -DDEBUG
 FLEX=flex ${FFLAGS}
 BISON= bison ${BFLAGS}
 DEPEND = ${CC} -MM ${CPPINCLUDE}
@@ -50,7 +51,7 @@ cgen:	${OBJS} parser semant
 	${CC} ${CFLAGS} ${OBJS} ${LIB} -o cgen
 
 cgen_aarch64:	${OBJS} parser semant
-	${CC} ${CFLAGS} -D__AACH64__ ${OBJS} ${LIB} -o cgen_aarch64
+	${CC} ${CFLAGS} ${OBJS} ${LIB} -o cgen_aarch64
 
 .cc.o:
 	${CC} ${CFLAGS} -c $<
