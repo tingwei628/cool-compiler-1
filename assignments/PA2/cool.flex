@@ -49,6 +49,8 @@ bool null_in_str = false;
 
 %}
 
+%option noyywrap
+
 DIGIT         [0-9]
 ALPHANUM      [a-zA-Z0-9]
 

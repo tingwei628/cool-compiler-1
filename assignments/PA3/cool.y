@@ -135,6 +135,7 @@
     %type <cases> case_list
 
     /* Precedence declarations go here. */
+    %right FLAG
     %right ASSIGN
     %left NOT
     %nonassoc LE '<' '='
@@ -144,7 +145,6 @@
     %left '~'
     %left '@'
     %left '.'
-
     %%
 
     /* Save the root of the abstract syntax tree in a global variable. */
@@ -166,13 +166,13 @@
                              stringtable.add_string(curr_filename)); }
           | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
                { $$ = class_($2, $4, $6, stringtable.add_string(curr_filename)); }
-          | error ';'
+          | error ';' { }
           ;
 
     feature_list :
                       { $$ = nil_Features(); }
-                 | feature ';'
-                      { $$ = single_Features($1); }
+                 /* | feature ';'
+                      { $$ = single_Features($1); } */
                  | feature_list feature ';'
                       { $$ = append_Features($1, single_Features($2)); }
                  ;
@@ -183,7 +183,7 @@
                  { $$ = attr($1, $3, no_expr()); }
             | OBJECTID ':' TYPEID ASSIGN expr
                  { $$ = attr($1, $3, $5); }
-            | error
+            | error { }
             ;
 
     formal_list :
@@ -262,7 +262,7 @@
                              { $$ = single_Expressions($1); }
                         | expr_list_semicolon expr ';'
                              { $$ = append_Expressions($1, single_Expressions($2)); }
-                        | error ';'
+                        | error ';'{ }
                         ;
 
     case_ : OBJECTID ':' TYPEID DARROW expr ';'
@@ -275,15 +275,15 @@
                    { $$ = append_Cases($1, single_Cases($2)); }
               ;
 
-    let_body : OBJECTID ':' TYPEID ASSIGN expr IN expr
+    let_body : OBJECTID ':' TYPEID ASSIGN expr IN expr %prec FLAG
                   { $$ = let($1, $3, $5, $7); }
-             | OBJECTID ':' TYPEID IN expr
+             | OBJECTID ':' TYPEID IN expr %prec FLAG
                   { $$ = let($1, $3, no_expr(), $5); }
-             | OBJECTID ':' TYPEID ASSIGN expr ',' let_body
+             | OBJECTID ':' TYPEID ASSIGN expr ',' let_body %prec FLAG
                   { $$ = let($1, $3, $5, $7); }
-             | OBJECTID ':' TYPEID ',' let_body
+             | OBJECTID ':' TYPEID ',' let_body %prec FLAG
                   { $$ = let($1, $3, no_expr(), $5); }
-             | error ',' let_body
+             | error ',' let_body { }
              ;
 
     %%

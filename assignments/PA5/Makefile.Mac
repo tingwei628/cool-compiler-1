@@ -50,7 +50,7 @@ cgen:	${OBJS} parser semant
 	${CC} ${CFLAGS} ${OBJS} ${LIB} -o cgen
 
 cgen_aarch64:	${OBJS} parser semant
-	${CC} ${CFLAGS} -D__AACH64__ ${OBJS} ${LIB} -o cgen
+	${CC} ${CFLAGS} -D__AACH64__ ${OBJS} ${LIB} -o cgen_aarch64
 
 .cc.o:
 	${CC} ${CFLAGS} -c $<
@@ -69,7 +69,7 @@ ${HSRC}:
 	-ln -s ${CLASSDIR}/include/PA${ASSN}/$@ $@
 
 clean :
-	-rm -f ${OUTPUT} *.s core ${OBJS} cgen parser semant lexer *~ *.a *.o
+	-rm -f ${OUTPUT} *.s core ${OBJS} cgen_aarch64 cgen parser semant lexer *~ *.a *.o
 
 clean-compile:
 	@-rm -f core ${OBJS} ${LSRC}
