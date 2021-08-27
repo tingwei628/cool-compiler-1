@@ -1,0 +1,4 @@
+#!/bin/bash
+#arm64_exec is ELF 64-bit LSB executable, ARM aarch64
+for asm in "$@"; do $AS $asm -o ${asm%.s}.o; done
+$LD *.o -o arm64_exec
