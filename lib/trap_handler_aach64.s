@@ -201,9 +201,76 @@
 # IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
 # WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
 # PURPOSE.
-#
-# Define the exception handling code.  This must go first!
 
+	.data
+
+# system call number
+.equ SYS_READ, 0x3f
+.equ SYS_WRITE, 0x40
+.equ SYS_BRK, 0xd6
+.equ SYS_EXIT, 0x5d
+
+.equ obj_eyecatch, -4 # Unique id to verify any object
+.equ obj_tag, 0
+.equ obj_size, 4
+.equ obj_disp, 8
+.equ obj_attr, 12
+.equ int_slot, 12
+.equ bool_slot, 12
+.equ str_size, 12	# This is a pointer to an Int object!!!
+.equ str_field, 16	# The beginning of the ascii sequence
+.equ str_maxsize, 1026	# the maximum string length
+
+/*
+MSG:
+    .ascii "Hello world!\n"
+
+.equ MSG_LEN, . - MSG
+*/
+
+
+	//mov x8, #SYS_WRITE
+    //mov x0, #STDOUT
+    //adr x1, MSG
+    //mov x2, #MSG_LEN
+    //svc #0
+
+	// exit(SUCCESS)
+    // mov x8, #SYS_EXIT
+    // mov x0, #SUCCESS
+    // svc #0
+
+
+_abort_msg:	.asciz "Abort called from class "
+_colon_msg:	.asciz ":"
+_dispatch_msg:  .asciz ": Dispatch to void.\n"
+_cabort_msg:	.asciz "No match in case statement for Class "
+_cabort_msg2:   .asciz "Match on void in case statement.\n"
+_nl:		.asciz "\n"
+_term_msg:	.asciz "COOL program successfully executed\n"
+_sabort_msg1:	.asciz	"Index to substr is negative\n"
+_sabort_msg2:	.asciz	"Index to substr is too big\n"
+_sabort_msg3:	.asciz	"Length to substr too long\n"
+_sabort_msg4:	.asciz	"Length to substr is negative\n"
+_sabort_msg:	.asciz "Execution aborted.\n"
+_objcopy_msg:	.asciz "Object.copy: Invalid object size.\n"
+_gc_abort_msg:	.asciz "GC bug!\n"
+
+# Exception Handler Message:
+_uncaught_msg1: .asciz "Uncaught Exception of Class "
+_uncaught_msg2: .asciz " thrown. COOL program aborted.\n"
+
+_GenGC_INITERROR:	.asciz "GenGC: Unable to initialize the garbage collector.\n"
+_GenGC_COLLECT:		.asciz "Garbage collecting ...\n"
+_GenGC_Major:		.asciz "Major ...\n"
+_GenGC_Minor:		.asciz "Minor ...\n"
+_GenGC_MINORERROR:	.asciz "GenGC: Error during minor garbage collection.\n"
+_GenGC_MAJORERROR:	.asciz "GenGC: Error during major garbage collection.\n"
+_GenGC_Init_test_msg:   .asciz "GenGC initialized in test mode.\n"
+_GenGC_Init_msg:        .asciz "GenGC initialized.\n"
+
+
+# Define the exception handling code.  This must go first!
 	.kdata
 __m1_:	.asciiz "  Exception "
 __m2_:	.asciiz " Execution aborted\n"
@@ -231,16 +298,16 @@ s1:	.word 0
 s2:	.word 0
 
 	.ktext 0x80000080
-	.set noat
+	.set noat # turn off assembler warnings
 	# Because we are running in the kernel, we can use $k0/$k1 without
 	# saving their old values.
 	move $at $k1	# Save $at
-	.set at
+	.set at		# turn warnings back on
 	sw $v0 s1	# Not re-entrent and we can't trust $sp
 	sw $a0 s2
 	mfc0 $k0 $13	# Cause
-        sgt $v0 $k0 0x44 # ignore interrupt exceptions
-        bgtz $v0 ret
+        sgt $v0 $k0 0x44 # ignore interrupt exceptions(sgt rd, rs, rt ; if(rs > rt) rd=1, else rd=0)
+        bgtz $v0 ret # $v0 greater than zero then jump to ret
         addu $0 $0 0
 	li $v0 4	# syscall 4 (print_str)
 	la $a0 __m1_
@@ -259,9 +326,9 @@ s2:	.word 0
 ret:	lw $v0 s1
 	lw $a0 s2
 	mfc0 $k0 $14	# EPC
-	.set noat
+	.set noat 		# turn off assembler warnings
 	move $k1 $at	# Restore $at
-	.set at
+	.set at			# turn warnings back on
 	rfe		# Return from exception handler
 	addiu $k0 $k0 4 # Return to next instruction
 	jr $k0
@@ -290,6 +357,7 @@ ret:	lw $v0 s1
 #
 # Standard startup code.  Invoke the routine main with no arguments.
 #
+/*
 	.data
 
 _abort_msg:	.asciiz "Abort called from class "
@@ -310,17 +378,18 @@ _gc_abort_msg:	.asciiz "GC bug!\n"
 # Exception Handler Message:
 _uncaught_msg1: .asciiz "Uncaught Exception of Class "
 _uncaught_msg2: .asciiz " thrown. COOL program aborted.\n"
+*/
 _exception_handler:
 	.word	__exception
 
 # Stack overflow handler message:
-_stack_overflow_msg: .asciiz " Stack overflow detected, COOL program aborted\n"
+//_stack_overflow_msg: .asciiz " Stack overflow detected, COOL program aborted\n"
 
 
 #
 # Messages for the GenGC garbage collector
 #
-
+/*
 _GenGC_INITERROR:	.asciiz "GenGC: Unable to initialize the garbage collector.\n"
 _GenGC_COLLECT:		.asciiz "Garbage collecting ...\n"
 _GenGC_Major:		.asciiz "Major ...\n"
@@ -330,12 +399,14 @@ _GenGC_MINORERROR:	.asciiz "GenGC: Error during minor garbage collection.\n"
 _GenGC_MAJORERROR:	.asciiz "GenGC: Error during major garbage collection.\n"
 _GenGC_Init_test_msg:   .asciiz "GenGC initialized in test mode.\n"
 _GenGC_Init_msg:        .asciiz "GenGC initialized.\n"
+*/
 
 #
 # Messages for the NoGC garabge collector
 #
 
-_NoGC_COLLECT:		.asciiz "Increasing heap...\n"
+// _NoGC_COLLECT:		.asciiz "Increasing heap...\n"
+_NoGC_COLLECT:		.asciz "Increasing heap...\n" # .asciz in aarch64
 #_NoGC_COLLECT:		.asciiz ""
 
 	.align 2
@@ -344,6 +415,7 @@ _NoGC_COLLECT:		.asciiz "Increasing heap...\n"
 # Define some constants
 #
 
+/*
 obj_eyecatch=-4	# Unique id to verify any object
 obj_tag=0
 obj_size=4
@@ -354,6 +426,7 @@ bool_slot=12
 str_size=12	# This is a pointer to an Int object!!!
 str_field=16	# The beginning of the ascii sequence
 str_maxsize=1026	# the maximum string length
+*/
 
 #
 # The REG mask tells the garbage collector which register(s) it
@@ -372,7 +445,7 @@ str_maxsize=1026	# the maximum string length
 #    0   0   7   F   0   0   0   0     ($16-$22)
 #
 
-MemMgr_REG_MASK=0x007F0000
+//MemMgr_REG_MASK=0x007F0000
 
 	.text
 
@@ -397,7 +470,7 @@ __exception:			# $a0 contains case expression obj.
 	li	$v0 10
 	syscall			# Exit
 
-
+/*
 	.globl _stack_overflow_abort
 # Stack Overflow Message
 _stack_overflow_abort:
@@ -406,14 +479,18 @@ _stack_overflow_abort:
 	syscall			# print message
 	li	$v0 10
 	syscall			# Exit
+*/
 
-	.globl __start
-__start:
+# START
+	.globl _start
+_start:
 	li	$v0 9
 	move	$a0 $zero
 	syscall				# sbrk
 	move	$a0 $sp			# initialize the garbage collector
+	/*
 	li	$a1 MemMgr_REG_MASK
+	*/
 	move	$a2 $v0
 	jal	_MemMgr_Init		# sets $gp and $s7 (limit)
 
@@ -936,8 +1013,8 @@ String.concat:
 
 	addiu	$a0 $t0 str_field		# size to allocate
 	addiu	$a0 $a0 4			# include '\0', +3 to align
-	la	$t2 0xfffffffc
-	and	$a0 $a0 $t2			# align on word boundary
+	la	$t2 0xfffffffc		# 0xfffffffc (= 1111 1111 1111 1111 1111 1111 1111 1100)
+	and	$a0 $a0 $t2			# align on word boundary (& 0xfffffffc which can be divided by 4)
 	addiu   $a0 $a0 1                       # make size odd for GC <-|
 	sw	$a0 4($sp)			# save size in bytes     |
 	addiu	$a0 $a0 3			# include eyecatcher(4) -1
@@ -1015,7 +1092,7 @@ String.substr:
 	sll	$a0 $a0 2
 	addi	$a0 $a0 str_maxsize
 	jal	_MemMgr_QAlloc
-
+/*
 _ss_ok:
 	la	$a0 Int_protObj
 	jal	_quick_copy
@@ -1054,14 +1131,14 @@ _ss_loop:
 	addiu	$t3 $t3 -1	# dec ctr
 	bnez	$t3 _ss_loop
 _ss_end:
-	sb	$zero 0($a2)	# null terminate
+	sb	$zero 0($a2)	# null terminate (sb rt address ;store byte in rt to address)
 	move	$gp $a2
 	addiu	$gp $gp 4	# realign the heap ptr
 	la	$t0 0xfffffffc
 	and	$gp $gp $t0	# word align $gp
 
 	sub	$t0 $gp $a0	# calc object size
-	srl	$t0 $t0 2	# div by 4
+	srl	$t0 $t0 2	# div by 4 (srl - shift right logical)
 	sw	$t0 obj_size($a0)
 
 	lw	$ra 4($sp)
@@ -1087,7 +1164,7 @@ _ss_abort:
 	syscall
 	li	$v0 10		# exit
 	syscall
-
+*/
 #
 # MemMgr Memory Manager
 #
@@ -1441,8 +1518,8 @@ GenGC_HDRMAJOR0=20				# history of major collections
 GenGC_HDRMAJOR1=24
 GenGC_HDRMINOR0=28				# history of minor collections
 GenGC_HDRMINOR1=32
-GenGC_HDRSTK=36					# start of stack
-GenGC_HDRREG=40					# current REG mask
+//GenGC_HDRSTK=36					# start of stack
+//GenGC_HDRREG=40					# current REG mask
 
 #
 # Granularity of heap expansion
@@ -1479,7 +1556,7 @@ GenGC_OLDRATIO=2				# 1/(2^2)=.25=25%
 #    C   3   7   F   0   0   0   0     ($16-$22, $24-$25, $30, $31)
 #
 
-GenGC_ARU_MASK=0xC37F0000
+//GenGC_ARU_MASK=0xC37F0000
 
 #
 # Functions
@@ -1528,8 +1605,10 @@ _GenGC_Init:
 	sw	$0 GenGC_HDRMAJOR1($t0)
 	sw	$0 GenGC_HDRMINOR0($t0)
 	sw	$0 GenGC_HDRMINOR1($t0)
+	/*
 	sw	$a0 GenGC_HDRSTK($t0)		# save stack start
 	sw	$a1 GenGC_HDRREG($t0)		# save register mask
+	*/
 	li	$v0 9				# get heap end
 	move	$a0 $zero
 	syscall					# sbrk
@@ -2499,7 +2578,7 @@ _GenGC_Collect_done:
 # Some constants
 #
 
-NoGC_EXPANDSIZE=0x10000				# size to expand heap
+//NoGC_EXPANDSIZE=0x10000				# size to expand heap
 
 #
 # Initialization
@@ -2545,6 +2624,7 @@ _NoGC_Collect:
 	la	$a0 _NoGC_COLLECT		# show collection message
 	li	$v0 4
 	syscall
+/*
 _NoGC_Collect_loop:
 	add	$t0 $gp $a1			# test allocation
 	blt	$t0 $s7 _NoGC_Collect_ok	# stop if enough
@@ -2558,4 +2638,5 @@ _NoGC_Collect_loop:
 	b	_NoGC_Collect_loop		# loop
 _NoGC_Collect_ok:
 	jr	$ra				# return
+*/
 
