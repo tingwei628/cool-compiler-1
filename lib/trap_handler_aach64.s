@@ -1431,7 +1431,7 @@ _GenGC_Collect:
 	adr x1, heap_start
 	ldr x9, [x1, #GenGC_HDRMINOR1]
 	add x9, x9, x0
-	lsr x9, x9, 1
+	lsr x9, x9, #1
 	str x9, [x1, #GenGC_HDRMINOR1] // update histories
     str x0, [x1, #GenGC_HDRMINOR0]
 	mov x12, x9 // set $t0 to max of minor
@@ -1457,90 +1457,106 @@ _GenGC_Collect:
 	//bgt	$t1 $a0 _GenGC_Collect_maxmaj
 	//move	$t0 $a0
 _GenGC_Collect_maxmaj:
-	ldr x9, [x1, #GenGC_HDRMAJOR0]
-	ldr x9
-	//lw	$t1 GenGC_HDRMAJOR0($a1)	# set $t1 to max of major
-	lw	$t2 GenGC_HDRMAJOR1($a1)
-	bgt	$t1 $t2 _GenGC_Collect_maxdef
-	move	$t1 $t2
+	ldr x9, [x1, #GenGC_HDRMAJOR0] // set $t1 to max of major
+	ldr x10, [x1, #GenGC_HDRMAJOR1]
+	cmp x9, x10
+	b.gt _GenGC_Collect_maxdef
+	mov x9, x10
 _GenGC_Collect_maxdef:
-	lw	$t2 GenGC_HDRL3($a1)
-	sub	$t0 $t2 $t0			# set $t0 to L3-$t0-$t1
-	sub	$t0 $t0 $t1
-	lw	$t1 GenGC_HDRL0($a1)		# set $t1 to L3-(L3-L0)/2
-	sub	$t1 $t2 $t1
-	srl	$t1 $t1 1
-	sub	$t1 $t2 $t1
-	blt	$t0 $t1 _GenGC_Collect_breakpt	# set $t0 to minimum of above
-	move	$t0 $t1
+	ldr x10, [x1, #GenGC_HDRL3]
+	sub x12, x10, x12 // set $t0 to L3-$t0-$t1
+	sub x12, x12, x9
+	ldr x9, [x1, #GenGC_HDRL0] // set $t1 to L3-(L3-L0)/2
+	sub x9, x10, x9
+	lsr x9, x9, #1
+	sub x9, x10, x9
+	cmp x12, x9
+	b.lt _GenGC_Collect_breakpt // set $t0 to minimum of above
+	mov x12, x9
 _GenGC_Collect_breakpt:
-	lw	$t1 GenGC_HDRL1($a1)		# get end of old area
-	bge	$t1 $t0 _GenGC_Collect_major
-	lw	$t0 GenGC_HDRL2($a1)
-	lw	$t1 GenGC_HDRL3($a1)
-	lw	$t2 4($sp)			# load requested size into $t2
-	sub	$t0 $t1 $t0			# find reserve/work area barrier
-	srl	$t0 $t0 1
-	la	$t3 0xfffffffc
-	and	$t0 $t0 $t3
-	sub	$t0 $t1 $t0			# reserve/work barrier
-	addu	$t2 $t0 $t2			# test allocation
-	bge	$t2 $t1 _GenGC_Collect_major	# check if work area too small
+	ldr x9, [x1, #GenGC_HDRL1] // get end of old area
+	cmp x9, x12
+	b.ge _GenGC_Collect_major
+	ldr x12, [x1, #GenGC_HDRL2]
+	ldr x9, [x1, #GenGC_HDRL3]
+	ldr x10, [sp, #4] // load requested size into $t2
+	sub x12, x9, x12 // find reserve/work area barrier
+	lsr x12, x12, #1
+	ldr x11, =0xfffffffc
+	and x12, x12, x11
+	sub x12, x9, x12 // reserve/work barrier
+	add x10, x12, x10 // test allocation
+	cmp x10, x9
+	b.ge _GenGC_Collect_major // check if work area too small
 _GenGC_Collect_nomajor:
- 	lw	$t1 GenGC_HDRL2($a1)
- 	sw	$t1 GenGC_HDRL1($a1)		# expand old area
- 	sw	$t0 GenGC_HDRL2($a1)		# set new reserve/work barrier
- 	move	$gp $t0				# set $gp
- 	lw	$s7 GenGC_HDRL3($a1)		# load limit into $s7
- 	b	_GenGC_Collect_done
+ 	ldr x9, [x1, #GenGC_HDRL2]
+	str x9, [x1, #GenGC_HDRL1] // expand old area
+	str x12, [x1, #GenGC_HDRL2] // set new reserve/work barrier
+	mov x27, x12 // set $gp
+	ldr x26, [x1, #GenGC_HDRL3] // load limit into $s7
+	b _GenGC_Collect_done
 _GenGC_Collect_major:
-	la	$a0 _GenGC_Major		# print collection message
-	li	$v0 4
-	syscall
-	lw	$a0 8($sp)			# restore stack end
-	jal	_GenGC_MajorC			# major collection
-	la	$a1 heap_start
-	lw	$t1 GenGC_HDRMAJOR1($a1)
-	addu	$t1 $t1 $a0
-	srl	$t1 $t1 1
-	sw	$t1 GenGC_HDRMAJOR1($a1)	# update histories
-	sw	$a0 GenGC_HDRMAJOR0($a1)
-	lw	$t1 GenGC_HDRL3($a1)		# find ratio of the old area
-	lw	$t0 GenGC_HDRL0($a1)
-	sub	$t1 $t1 $t0
-	srl	$t1 $t1 GenGC_OLDRATIO
-	addu	$t1 $t0 $t1
-	lw	$t0 GenGC_HDRL1($a1)
-	sub	$t0 $t0 $t1
-	sll	$t0 $t0 GenGC_OLDRATIO		# amount to expand in $t0
-	lw	$t1 GenGC_HDRL3($a1)		# load L3
-	lw	$t2 GenGC_HDRL1($a1)		# load L1
-	sub	$t2 $t1 $t2
-	srl	$t2 $t2 1
-	la	$t3 0xfffffffc
-	and	$t2 $t2 $t3
-	sub	$t1 $t1 $t2			# reserve/work barrier
-	lw	$t2 4($sp)			# restore size
-	addu	$t1 $t1 $t2
-	lw	$t2 GenGC_HDRL3($a1)		# load L3
-	sub	$t1 $t1 $t2			# test allocation
-	addiu	$t1 $t1 4			# adjust for round off errors
-	sll	$t1 $t1 1			# need to allocate $t1 memory
-	blt	$t1 $t0 _GenGC_Collect_enough	# put max of $t0, $t1 in $t0
-	move	$t0 $t1
+	ldr x0, =_GenGC_Major // print collection message
+	bl puts
+	ldr x0, [sp, #8] // restore stack end
+	bl _GenGC_MajorC // major collection
+	adr x1, heap_start
+	ldr x9, [x1, #GenGC_HDRMAJOR1]
+	add x9, x9, x0
+	lsr x9, x9, #1
+	str x9, [x1, #GenGC_HDRMAJOR1] // update histories
+	str x0, [x1, #GenGC_HDRMAJOR0]
+	ldr x9, [x1, #GenGC_HDRL3] // find ratio of the old area
+	ldr x12, [x1, #GenGC_HDRL0]
+	sub x9, x9, x12
+	lsr x9, x9, #GenGC_OLDRATIO
+	add x9, x12, x9
+	ldr x12, [x1, #GenGC_HDRL1]
+	sub x12, x12, x9
+	lsl x12, x12, #GenGC_OLDRATIO // amount to expand in $t0
+	ldr x9, [x1, #GenGC_HDRL3] // load L3
+	ldr x10, [x1, #GenGC_HDRL1] // load L1
+	sub x10, x9, x10
+	lsr x10, x10, #1
+	ldr x11, =0xfffffffc
+	and x10, x10, x11
+	sub x9, x9, x10 // reserve/work barrier
+	ldr x10, [sp, #4] // restore size
+	add x9, x9, x10
+	ldr x10, [x1, #GenGC_HDRL3] // load L3
+	sub x9, x9, x10 // test allocation
+	add x9, x9, #4 // adjust for round off errors
+	lsl x9, x9, #1 // need to allocate $t1 memory
+	cmp x9, x12
+	b.lt _GenGC_Collect_enough // put max of $t0, $t1 in $t0
+	mov x12, x9
 _GenGC_Collect_enough:
-	blez	$t0 _GenGC_Collect_setL2	# no need to expand
-	addiu	$t1 $0 1			# put 1 in $t1
-	sll	$t1 $t1 GenGC_HEAPEXPGRAN	# get granularity of expansion
-	addiu	$t1 $t1 -1			# align to granularity
-	addu	$t0 $t0 $t1
-	nor	$t1 $t1 $t1
-	and	$t0 $t0 $t1			# total memory needed
-	lw	$t1 GenGC_HDRL3($a1)		# load L3
-	lw	$t2 GenGC_HDRL4($a1)		# load L4
-	sub	$t1 $t2 $t1
-	sub	$t2 $t0 $t1			# actual amount to allocate
-	bgtz	$t2 _GenGC_Collect_getmem	# check if really need to allocate
+	cmp x12, xzr
+	b.le _GenGC_Collect_setL2 // no need to expand
+	add x9, xzr, #1 // put 1 in $t1
+	lsl x9, x9, #GenGC_HEAPEXPGRAN // get granularity of expansion
+	add x9, x9, #-1 // align to granularity
+	add x12, x12, x9
+	mvn x9, x9
+	and x12, x12, x9 // total memory needed
+	ldr x9, [x1, #GenGC_HDRL3] // load L3
+	ldr x9, [x1, #GenGC_HDRL4] // load L4
+	sub x9, x10, x9
+	sub x10, x12, x9 // actual amount to allocate
+	cmp x10, xzr
+	b.gt _GenGC_Collect_getmem // check if really need to allocate
+	//blez	$t0 _GenGC_Collect_setL2	# no need to expand
+	//addiu	$t1 $0 1			# put 1 in $t1
+	//sll	$t1 $t1 GenGC_HEAPEXPGRAN	# get granularity of expansion
+	//addiu	$t1 $t1 -1			# align to granularity
+	//addu	$t0 $t0 $t1
+	//nor	$t1 $t1 $t1
+	//and	$t0 $t0 $t1			# total memory needed
+	//lw	$t1 GenGC_HDRL3($a1)		# load L3
+	//lw	$t2 GenGC_HDRL4($a1)		# load L4
+	//sub	$t1 $t2 $t1
+	//sub	$t2 $t0 $t1			# actual amount to allocate
+	//bgtz	$t2 _GenGC_Collect_getmem	# check if really need to allocate
 _GenGC_Collect_xfermem:
 	lw	$s7 GenGC_HDRL3($a1)		# load L3
  	addu	$s7 $s7 $t0			# expand by $t0, set $s7
@@ -1568,9 +1584,8 @@ _GenGC_Collect_findL2:
 	sub	$gp $s7 $t1			# reserve/work barrier
 	sw	$gp GenGC_HDRL2($a1)		# save L2
 _GenGC_Collect_done:
-
-# Clear new generation to catch missing pointers
-	move	$t0 $gp
+// Clear new generation to catch missing pointers
+	mov x12, x27
 _GenGC_Clear_loop:
  	sw	$zero 0($t0)
  	addiu	$t0 $t0 4
