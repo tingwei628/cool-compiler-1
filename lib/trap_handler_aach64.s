@@ -1744,43 +1744,6 @@ _GenGC_OfsCopy_forward:
 	ldr x0, [x0, #obj_disp] // get forwarding pointer
  	ret // return
 
-#
-# Major Garbage Collection
-#
-#   This collection occurs when ever the old area grows beyond a specified
-#   point.  The minor collector sets up the Old, X, and New areas for
-#   this collector.  It then collects all the live objects in the old
-#   area (L0 to L1) into the new area (L2 to L3).  This collection consists
-#   of five phases:
-#
-#     1) Set $gp into the new area (L2), and $s7 to L4.  Also set the
-#        inputs for "_GenGC_OfsCopy".
-#
-#     2) Traverse the stack (see the minor collector) using "_GenGC_OfsCopy".
-#
-#     3) Check the registers (see the minor collector) using "_GenGC_OfsCopy".
-#
-#     4) Traverse the heap from L1 to $gp using "_GenGC_OfsCopy".  Note
-#        that this includes the X area.  (see the minor collector)
-#
-#     5) Block copy the region L1 to $gp back L1-L0 bytes to create the
-#        next old area.  Save the end in L1.  Calculate the size of the
-#        live objects collected from the old area and return this value.
-#
-#   Note that the pointers returned by "_GenGC_OfsCopy" are not valid
-#   until the block copy is done.
-#
-#   INPUT:
-#	$a0: end of stack
-#	heap_start: start of heap
-#
-#   OUTPUT:
-#	$a0: size of all live objects collected
-#
-#   Registers modified:
-#	$t0, $t1, $t2, $v0, $v1, $a0, $a1, $a2, $gp, $s7
-#
-
  	.globl _GenGC_MajorC
 _GenGC_MajorC:
 	add sp, sp, #-40
@@ -1935,67 +1898,71 @@ _GenGC_MajorC_heaploop:				# $t0: index, $gp: limit
 	cmp x9, x10
 	b.eq _GenGC_MajorC_string
 _GenGC_MajorC_other:
- 	addi	$t1 $t0 obj_attr		# start at first attribute
- 	add	$t2 $t0 $a0			# limit of attributes
- 	bge	$t1 $t2 _GenGC_MajorC_nextobj	# check for no attributes
- 	sw	$t0 16($sp)			# save pointer to object
- 	sw	$a0 12($sp)			# save object size
- 	sw	$t2 4($sp)			# save limit
-_GenGC_MajorC_objloop:				# $t1: index, $t2: limit
- 	sw	$t1 8($sp)			# save index
- 	lw	$a0 0($t1)			# set pointer to check
- 	jal	_GenGC_OfsCopy			# check and copy
- 	lw	$t1 8($sp)			# restore index
- 	sw	$a0 0($t1)			# update object pointer
- 	lw	$t2 4($sp)			# restore limit
- 	addiu	$t1 $t1 4
- 	blt	$t1 $t2 _GenGC_MajorC_objloop	# loop
+ 	add x9, x12, #obj_attr // start at first attribute
+	add x10, x12, x0 // limit of attributes
+	cmp x9, x10
+	b.ge _GenGC_MajorC_nextobj // check for no attributes
+	str x12, [sp, #16] // save pointer to object
+	str x0, [sp, #12] // save object size
+	str x10, [sp, #4] // save limit
+_GenGC_MajorC_objloop:				// $t1: index, $t2: limit
+ 	str x9, [sp, #8] // save index
+	ldr x0, [x9, #0] // set pointer to check 
+	bl _GenGC_OfsCopy // check and copy
+	ldr x9, [sp, #8] // restore index
+	str x0, [x9, #0] // update object pointer
+	ldr x10, [sp, #4] // restore limit
+	add x9, x9, #4
+	cmp x9, x10
+	b.lt _GenGC_MajorC_objloop // loop
 _GenGC_MajorC_objend:
- 	lw	$t0 16($sp)			# restore pointer to object
- 	lw	$a0 12($sp)			# restore object size
- 	b	_GenGC_MajorC_nextobj		# next object
+	ldr x12, [sp, #16] // restore pointer to object
+	ldr x0, [sp, #12] // restore object size
+	b _GenGC_MajorC_nextobj // next object
 _GenGC_MajorC_string:
- 	sw	$t0 16($sp)			# save pointer to object
- 	sw	$a0 12($sp)			# save object size
- 	lw	$a0 str_size($t0)		# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	lw	$t0 16($sp)			# restore pointer to object
-	sw	$a0 str_size($t0)		# update size pointer
- 	lw	$a0 12($sp)			# restore object size
+	str x12, [sp, #16] // save pointer to object
+	str x0, [sp, #12] // save object size
+	ldr x0, [x12, #str_size] // set test pointer
+ 	bl _GenGC_OfsCopy // check and copy
+	ldr x12, [sp, #16] // restore pointer to object
+	str x0, [x12, #str_size] // update size pointer
+	ldr x0, [sp, #12] // restore object size
 _GenGC_MajorC_int:
 _GenGC_MajorC_bool:
 _GenGC_MajorC_nextobj:
- 	add	$t0 $t0 $a0			# find next object
- 	blt	$t0 $gp _GenGC_MajorC_heaploop	# loop
+	add x12, x12, x0 // find next object
+	cmp x12, x27
+	b.lt _GenGC_MajorC_heaploop // loop
 _GenGC_MajorC_heapend:
- 	la	$t0 heap_start
- 	lw	$a0 GenGC_HDRL2($t0)		# get end of collection
- 	sub	$a0 $gp $a0			# get length after collection
- 	lw	$t1 GenGC_HDRL0($t0)		# get L0
- 	lw	$t2 GenGC_HDRL1($t0)		# get L1
- 	bge	$t2 $gp _GenGC_MajorC_bcpyend	# test for empty copy
+	adr x12, heap_start
+ 	ldr x0, [x12, #GenGC_HDRL2] // get end of collection
+	sub x0, x27, x0 // get length after collection
+	ldr x9, [x12, #GenGC_HDRL0] // get L0
+	ldr x10, [x12, #GenGC_HDRL1] // get L1
+	cmp x10, x27
+	b.ge _GenGC_MajorC_bcpyend // test for empty copy
 _GenGC_MajorC_bcpyloop:				# $t2 index, $gp limit, $t1 dest
- 	lw	$v0 0($t2)			# copy
- 	sw	$v0 0($t1)
- 	addiu	$t2 $t2 4			# update each index
- 	addiu	$t1 $t1 4
- 	bne	$t2 $gp _GenGC_MajorC_bcpyloop	# loop
+ 	ldr x6, [x10, #0] // copy
+	str x6, [x9, #0] 
+	add x10, x10, #4 // update each index
+	add x9, x9, #4
+	cmp x10, x27
+	b.ne _GenGC_MajorC_bcpyloop // loop
 _GenGC_MajorC_bcpyend:
- 	sw	$s7 GenGC_HDRL4($t0)		# save end of heap
- 	lw	$t1 GenGC_HDRL0($t0)		# get L0
- 	lw	$t2 GenGC_HDRL1($t0)		# get L1
- 	sub	$t1 $t2 $t1			# find offset of block copy
- 	sub	$gp $gp $t1			# find end of old area
- 	sw	$gp GenGC_HDRL1($t0)		# save end of old area
- 	lw	$ra 20($sp)			# restore return address
- 	addiu	$sp $sp 20
- 	jr	$ra				# return
+ 	str x26, [x12, #GenGC_HDRL4] // save end of heap
+	ldr x9, [x12, #GenGC_HDRL0] // get L0
+	ldr x10, [x12, #GenGC_HDRL1] // get L1
+	sub x9, x10, x9 // find offset of block copy
+	sub x27, x27, x9 // find end of old area
+	str x27, [x12, #GenGC_HDRL1] // save end of old area
+	ldr x30, [sp, #20] // restore return address
+	add sp, sp, #40
+	ret // return
 _GenGC_MajorC_error:
- 	la	$a0 _GenGC_MAJORERROR		# show error message
- 	li	$v0 4
- 	syscall
- 	li	$v0 10				# exit
- 	syscall
+	ldr x0, =_GenGC_MAJORERROR
+	bl puts
+ 	mov x0, #1
+	bl exit // exit(1)
 
 #
 # Set the Register (REG) mask
