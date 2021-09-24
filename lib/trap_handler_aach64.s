@@ -396,41 +396,25 @@ _start:
 	
 	adr x0, Main_protObj // create the Main object
 	bl Object.copy // Call copy
-	addiu	$sp $sp -4
-	sw	$a0 4($sp)		# save the Main object on the stack
-	move	$s0 $a0			# set $s0 to point to self
-	jal	Main_init		# initialize the Main object
-	jal	Main.main		# Invoke main method
+	add sp, sp, #-8
+	str x0, [sp, #4] // save the Main object on the stack
+	mov x19, x0 // set $s0 to point to self
+	bl Main_init // initialize the Main object
+	bl Main.main // Invoke main method
+
 	.globl __main_return
 __main_return: # where we return after the call to Main.main
-	addiu	$sp $sp 4		# restore the stack
-	la	$a0 _term_msg		# show terminal message
-	li	$v0 4
-	syscall
-	li $v0 10
-	syscall				# syscall 10 (exit)
+	add sp, sp, #8 // restore the stack
+	ldr x0, =_term_msg // show terminal message
+	bl puts
+	mov x0, #0
+	bl exit // exit(0)
 
-#
-#  Polymorphic equality testing function:
-#  Two objects are equal if they are
-#    - identical (pointer equality, inlined in code)
-#    - have same tag and are of type BOOL,STRING,INT and contain the
-#      same data
-#
-#  INPUT: The two objects are passed in $t1 and $t2
-#  OUTPUT: Initial value of $a0, if the objects are equal
-#          Initial value of $a1, otherwise
-#
-#  The tags for Int,Bool,String are found in the global locations
-#  _int_tag, _bool_tag, _string_tag, which are initialized by the
-#  data part of the generated code. This removes a consistency problem
-#  between this file and the generated code.
-#
 
 	.globl	equality_test
-equality_test:			# ops in $t1 $t2
-				# true in A0, false in A1
-				# assume $t1, $t2 are not equal
+equality_test:			// ops in $t1 $t2
+				// true in A0, false in A1
+				// assume $t1, $t2 are not equal
 	beq	$t1 $zero _eq_false # $t2 can't also be void   
 	beq     $t2 $zero _eq_false # $t1 can't also be void   
 	lw	$v0 obj_tag($t1)	# get tags
@@ -1093,41 +1077,23 @@ _MemMgr_Alloc_end:
 	sub x0, x27, x0
 	ret // return
 
-#
-# Query Memory Allocation
-#
-#   Verifies that the requested amount of memory can be allocated
-#   within the work area.
-#
-#   INPUT:
-#	$a0: size of allocation in bytes
-#	$s7: limit pointer of the work area
-#	$gp: current allocation pointer
-#	heap_start: start of heap
-#
-#   OUTPUT:
-#	$a0: size of allocation in bytes (unchanged)
-#
-#   Registers modified:
-#	$t0, $a1, collector function
-#
-
 	.globl _MemMgr_QAlloc
 _MemMgr_QAlloc:
-	add	$t0 $gp $a0			# attempt to allocate storage
-	blt	$t0 $s7 _MemMgr_QAlloc_end	# check allocation
-	addiu	$sp $sp -4
-	sw	$ra 4($sp)			# save return address
-	move	$a1 $a0				# size
-	addiu	$a0 $sp 4			# end of stack to collect
-	la	$t0 _MemMgr_COLLECTOR		# pointer to collector function
-	lw	$t0 0($t0)
-	jalr	$t0				# garbage collect
-	lw	$ra 4($sp)			# restore return address
-	addiu	$sp $sp 4
-	move	$a0 $a1				# put size into $a0
+	add x12, x27, x0
+	cmp x12, x26
+	b.lt _MemMgr_QAlloc_end // check allocation
+	add sp, sp, #-8 // attempt to allocate storage
+	str x30, [sp, #4] // save return address
+	mov x1, x0 // size
+	add x0, sp, #4 // end of stack to collect
+	adr x12, _MemMgr_COLLECTOR // pointer to collector function
+	ldr x12, [x12, #0]
+	blr x12 // garbage collect
+	ldr x30, [sp, #4] // restore return address
+	add sp, sp, #8
+	mov x0, x1 // put size into $a0
 _MemMgr_QAlloc_end:
-	jr	$ra				# return
+	ret // return
 
 	.globl	_MemMgr_Test
 _MemMgr_Test:
@@ -1200,34 +1166,6 @@ _GenGC_Init_error:
 	bl puts
 	mov x0, #1 // exit
 	bl exit
-
-#
-# Record Assignment
-#
-#   Records an assignment in the assignment table.  Note that because
-#   $s7 is always greater than $gp, an assignment can always be
-#   recorded.
-#
-#   INPUT:
-#	$a1: pointer to the pointer being modified
-#	$s7: limit pointer of the work area
-#	$gp: current allocation pointer
-#	heap_start: start of heap
-#
-#   Registers modified:
-#	$t0, $t1, $t2, $v0, $v1, $a1, $a2, $gp, $s7
-#
-#   sm: $a0 is explicitly saved in the GC case so that in the normal
-#   case the caller need not save/restore $a0
-#
-#   sm: Apparently _GenGC_Collect wants $a0 to be the last+1 word
-#   of the stack, rather than the last word; I've therefore changed
-#     addiu   $a0 $sp 4
-#   to
-#     addiu   $a0 $sp 0     (i.e. move $a0 $sp)
-#   Just in case this isn't exactly right, I've also put 0 into that 
-#   last spot so it will definitely be safely ignored.
-#
 
 	.globl _GenGC_Assign
 _GenGC_Assign:
