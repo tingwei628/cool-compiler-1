@@ -415,46 +415,60 @@ __main_return: # where we return after the call to Main.main
 equality_test:			// ops in $t1 $t2
 				// true in A0, false in A1
 				// assume $t1, $t2 are not equal
-	beq	$t1 $zero _eq_false # $t2 can't also be void   
-	beq     $t2 $zero _eq_false # $t1 can't also be void   
-	lw	$v0 obj_tag($t1)	# get tags
-	lw	$v1 obj_tag($t2)
-	bne	$v1 $v0 _eq_false	# compare tags
-	lw	$a2 _int_tag	# load int tag
-	beq	$v1 $a2 _eq_int	# Integers
-	lw	$a2 _bool_tag	# load bool tag
-	beq	$v1 $a2 _eq_int	# Booleans
-	lw	$a2 _string_tag # load string tag
-	bne	$v1 $a2 _eq_false  # Not a primitive type
-_eq_str: # handle strings
-	lw	$v0, str_size($t1)	# get string size objs
-	lw	$v1, str_size($t2)
-	lw	$v0, int_slot($v0)	# get string sizes
-	lw	$v1, int_slot($v1)
-	bne	$v1 $v0 _eq_false
-	beqz	$v1 _eq_true		# 0 length strings are equal
-	add	$t1 str_field		# Point to start of string
-	add	$t2 str_field
-	move	$t0 $v0		# Keep string length as counter
+	cmp x9, xzr
+	b.eq _eq_false // $t2 can't also be void 
+	cmp x10, xzr
+	b.eq _eq_false // $t1 can't also be void
+	ldr x6, [x9, #obj_tag] // get tags
+	ldr x7, [x10, #obj_tag]
+	cmp x7, x6
+	b.ne _eq_false // compare tags
+	ldr x2, =_int_tag // load int tag
+	ldr x2, [x2]
+	cmp x7, x2
+	b.eq _eq_int // Integers
+	ldr x2, =_bool_tag
+	ldr x2, [x2]
+	cmp x7, x2
+	b.eq _eq_int // Booleans
+	ldr x2, =_string_tag // load string tag
+	ldr x2, [x2]
+	cmp x7, x2
+	b.ne _eq_false // Not a primitive type
+_eq_str: // handle strings
+	ldr x6, [x9, #str_size] // get string size objs
+	ldr x7, [x10, #str_size]
+	ldr x6, [x6, #int_slot] // get string sizes
+	ldr x7, [x7, #int_slot]
+	cmp x7, x6
+	b.ne _eq_false
+	cmp x7, xzr
+	b.eq _eq_true // 0 length strings are equal
+	add x9, x9, #str_field // Point to start of string
+	add x10, x10, #str_field
+	mov x12, x6 // Keep string length as counter
 _eq_l1:
-	lbu	$v0,0($t1)	# get char
-	add	$t1 1
-	lbu	$v1,0($t2)
-	add	$t2 1
-	bne	$v1 $v0 _eq_false
-	addiu	$t0 $t0 -1	# Decrement counter
-	bnez	$t0 _eq_l1
-	b	_eq_true		# end of strings
+	ldrb w6, [x9, #0] // get char
+	add x9, x9, #1
+	ldrb w7, [x10, #0] // get char
+	add x10, x10, #1
+	cmp w7, w6
+	b.ne _eq_false
+	add x12, x12, #-1 // Decrement counter
+	cmp x12, xzr
+	b.ne _eq_l1
+	b _eq_true // end of strings
 		
-_eq_int:	# handles booleans and ints
-	lw	$v0,int_slot($t1)	# load values
-	lw	$v1,int_slot($t2)
-	bne	$v1 $v0 _eq_false
+_eq_int:	// handles booleans and ints
+	ldr x6, [x9, #int_slot] // load values
+	ldr x7, [x10, #int_slot]
+	cmp x7, x6
+	b.ne _eq_false
 _eq_true:
-	jr	$ra		# return true
+	ret // return true
 _eq_false:
-	move	$a0 $a1		# move false into accumulator
-	jr	$ra
+	mov x0, x1 // move false into accumulator
+	ret
 
 #
 #  _dispatch_abort
