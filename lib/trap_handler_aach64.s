@@ -1150,175 +1150,12 @@ _MemMgr_Test:
 _MemMgr_Test_end:
 	ret
 
-#
-# GenGC Generational Garbage Collector
-#
-#   This is an implementation of a generational garbage collector
-#   as described in "Simple Generational Garbage Collection and Fast
-#   Allocation" by Andrew W. Appel [Princeton University, March 1988].
-#   This is a two generation scheme which uses an assignment table
-#   to handle root pointers located in the older generation objects.
-#
-#   When the work area is filled, a minor garbage collection takes place
-#   which moves all live objects into the reserve area.  These objects
-#   are then incorporated into the old area.  New reserve and work areas
-#   are setup and allocation can continue in the work area.  If a break-
-#   point is reached in the size of the old area just after a minor
-#   collection, a major collection then takes place.  All live objects in
-#   the old area are then copied into the new area, expanding the heap if
-#   necessary.  The X and new areas are then block copied back L1-L0
-#   bytes to form the next old area.
-#
-#   The assignment table is implemented as a stack growing towards the
-#   allocation pointer ($gp) in the work area.  If they cross, a minor
-#   collection is then carried out.  This allows the garbage collector to
-#   to have to keep a fixed table of assignments.  As a result, programs
-#   with many assignments will tend not to be bogged down with extra
-#   garbage collections.
-#
-#   The unused area was implemented to help keep the garbage collector
-#   from continually expanding the heap.  This buffer zone allows major
-#   garbage collections to happen earlier, reducing the risk of expansions
-#   due to too many live objects in the old area.  The histories kept by
-#   the garbage collector in MAJOR0, MAJOR1, MINOR0, and MINOR1 also help
-#   to prevent unnecessary expansions of the heap.  If many live objects
-#   were recently collected, the garbage collections will start to occur
-#   sooner.
-#
-#   Note that during a minor collection, the work area is guaranteed to
-#   fit within the reserve area.  However, during a major collection, the
-#   old area will not necessarily fit in the new area.  If the latter occurs,
-#   "_GenGC_OfsCopy" will detect this and expand the heap.
-#
-#   The heap is expanded on two different occasions:
-#
-#     1) After a major collection, the old area is set to be at most
-#        1/(2^GenGC_OLDRATIO) of the usable heap (L0 to L3).  Note that
-#        first L4 is checked to see if any of the unused memory between L3
-#        and L4 is enough to satisfy this requirement.  If not, then the
-#        heap will be expanded.  If it is, the appropriate amount will be
-#        transfered from the unused area to the work/reserve area.
-#
-#     2) During a major collection, if the live objects in the old area
-#        do not fit within the new area, the heap is expanded and $s7
-#        is updated to reflact this.  This value later gets stored back
-#        into L4.
-#
-#   During a normal allocation and minor collections, the heap has the
-#   following form:
-#
-#      Header
-#       |
-#       |   Older generation objects
-#       |    |
-#       |    |             Minor garbage collection area
-#       |    |              |
-#       |    |              |                Allocation area
-#       |    |              |                 |
-#       |    |              |                 |           Assignment table
-#       |    |              |                 |            |
-#       |    |              |                 |            |   Unused
-#       |    |              |                 |            |    |
-#       v    v              v                 v            v    v
-#     +----+--------------+-----------------+-------------+---+---------+
-#     |XXXX| Old Area     | Reserve Area    | Work Area   |XXX| Unused  |
-#     +----+--------------+-----------------+-------------+---+---------+
-#      ^    ^              ^                 ^    ^        ^   ^         ^
-#      |    |              |                 |    |-->  <--|   |         |
-#      |    L0             L1                L2  $gp      $s7  L3        L4
-#      |
-#     heap_start
-#
-#     $gp (allocation pointer): points to the next free word in the work
-#         area during normal allocation.  During a minor garbage collection,
-#         it points to the next free work in the reserve area.
-#
-#     $s7 (limit pointer): points to the limit that $gp can traverse.  Between
-#         it and L3 sits the assignment table which grows towards $gp.
-#
-#   During a Major collection, the heap has the following form:
-#
-#      Header
-#       |
-#       |   Older generation objects
-#       |    |
-#       |    |                 Objects surviving last minor garbage collection
-#       |    |                  |
-#       |    |                  |         Major garbage collection area
-#       |    |                  |          |
-#       v    v                  v          v
-#     +----+------------------+----------+------------------------------+
-#     |XXXX| Old Area         | X        | New Area                     |
-#     +----+------------------+----------+------------------------------+
-#      ^    ^                  ^      ^   ^      ^                       ^
-#      |    |                  |      |   |      |-->                    |
-#      |    L0                 L1     |   L2    $gp                   L4, $s7
-#      |                              |
-#     heap_start                     breakpoint
-#
-#     $gp (allocation pointer): During a major collection, this points
-#         into the next free word in the new area.
-#
-#     $s7 (limit pointer): During a major collection, the points to the
-#         limit of heap memory.  $gp is not allowed to pass this value.
-#         If the objects in the live old area cannot fit in the new area,
-#         more memory is allocated and $s7 is adjusted accordingly.
-#
-#     breakpoint: Point where a major collection will occur.  It is
-#         calculated by the following formula:
-#
-#         breakpoint = MIN(L3-MAX(MAJOR0,MAJOR1)-MAX(MINOR0,MINOR1),
-#                          L3-(L3-L0)/2)
-#
-#         where (variables stored in the header):
-#           MAJOR0 = total size of objects in the new area after last major
-#                    collection.
-#           MAJOR1 = (MAJOR0+MAJOR1)/2
-#           MINOR0 = total size of objects in the reserve area after last
-#                    minor collection.
-#           MINOR1 = (MINOR0+MINOR1)/2
-#
-#   The following assumptions are made in the garbage collection
-#   process:
-#
-#     1) Pointers on the Stack:
-#        Every word on the stack that ends in 0 (i.e., is even) and is
-#	 a valid address in the heap is assumed to point to an object
-#        in the heap.  Even heap addresses on the stack that are actually
-#	 something else (e.g., raw integers) will probably cause an
-#        garbage collection error.
-#
-#     2) Object Layout:
-#        Besides the Int, String, and Bool objects (which are handled
-#        separately), the garbage collector assumes that each attribute
-#        in an object is a pointer to another object.  It, however,
-#        still does as much as possible to verify this before actually
-#        updating any fields.
-#
-#     3) Pointer tests:
-#        In order to be verified as an object, a pointer must undergo
-#        certain tests:
-#
-#          a) The pointer must point within the correct storage area.
-#          b) The word before the pointer (obj_eyecatch) must be the
-#             word 0xFFFF FFFF
-#          c) The word at the pointer must not be 0xFFFF FFFF (i.e.
-#             -1 cannot be a class tag)
-#
-#        These tests are performed whenever any data could be a pointer
-#        to keep any non-pointers from being updated accidentally.  The
-#        functions "_GenGC_ChkCopy" and "_GenGC_OfsCopy" are responsible
-#        for these checks.
-#
-#     4) The size stored in the object does not include the word required
-#        to store the eyecatcher for the object in the heap.  This allows
-#        the prototype objects to not require its own eyecatcher.  Also,
-#        a size of 0 is invalid because it is used as a flag by the garbage
-#        collector to indicate a forwarding pointer in the "obj_disp" field.
-#
-#     5) Roots are contained in the following areas: the stack, registers
-#        specified in the REG mask, and the assignment table.
-#
+//
+// GenGC Generational Garbage Collector
+//
+//   This is an implementation of a generational garbage collector
+//   as described in "Simple Generational Garbage Collection and Fast
+//   Allocation" by Andrew W. Appel [Princeton University, March 1988].
 
 	.globl _GenGC_Init
 _GenGC_Init:
@@ -1840,103 +1677,72 @@ _GenGC_MinorC_error:
 	mov x0, #1
 	bl exit // exit(1)
 
-#
-# Check and Copy an Object with an Offset
-#
-#   Checks that the input pointer points to an object is a heap object.
-#   If so, the pointer is checked to be in one of two areas.  If the
-#   pointer is in the X area, L0-L1 is added to the pointer, and the
-#   new pointer is returned.  If the pointer points within the old area,
-#   it then checks for a forwarding pointer by checking for an object
-#   size of 0.  If found, the forwarding pointer is returned.  If not
-#   found, the heap is then analyzed to make sure the object can be
-#   copied.  It then expands the heap if necessary (updating only $s7),
-#   and the copies the object to the $gp pointer.  It takes the new
-#   pointer, adds L0-L1 to it, then saves this modified new pointer in
-#   the forwarding (obj_disp) field and sets the flag (obj_size to 0).
-#   Finally, it returns this pointer.  Note that this pointer does not
-#   actually point to the object at this time.  This entire area will
-#   later be block copied.  After that, this pointer will be valid.
-#   The same tests are done here as in "_GenGC_ChkCopy" to verify that
-#   this is a heap object.
-#
-#   INPUT:
-#	$a0: pointer to check and copy with an offset
-#	$a1: L0 pointer
-#	$a2: L1 pointer
-#	$v1: L2 pointer
-#	$gp: current allocation pointer
-#	$s7: L4 pointer
-#
-#   OUTPUT:
-#	$a0: if input points to a heap object then it is set to the
-#            new location of object.  If not, it is unchanged.
-#	$a1: L0 pointer (unchanged)
-#	$a2: L1 pointer (unchanged)
-#	$v1: L2 pointer (unchanged)
-#
-#   Registers modified:
-#	$t0, $t1, $t2, $v0, $a0, $gp, $s7
-#
-
  	.globl _GenGC_OfsCopy
 _GenGC_OfsCopy:
- 	blt	$a0 $a1 _GenGC_OfsCopy_done	# check lower bound
- 	bge	$a0 $v1 _GenGC_OfsCopy_done	# check upper bound
- 	andi	$t2 $a0 1			# check if odd
- 	bnez	$t2 _GenGC_OfsCopy_done
- 	addiu	$t2 $0 -1
- 	lw	$t1 obj_eyecatch($a0)		# check eyecatcher
- 	bne	$t2 $t1 _gc_abort
- 	lw	$t1 obj_tag($a0)		# check object tag
- 	beq	$t2 $t1 _GenGC_OfsCopy_done
- 	blt	$a0 $a2 _GenGC_OfsCopy_old	# check if old, X object
- 	sub	$v0 $a1 $a2			# compute offset
- 	add	$a0 $a0 $v0			# apply pointer offset
- 	jr	$ra				# return
+    cmp x0, x1
+	b.lt _GenGC_OfsCopy_done // check lower bound
+	cmp x0, x7
+	b.ge _GenGC_OfsCopy_done // check upper bound
+ 	and x10, x0, #1 // check if odd
+	cmp x10, xzr
+	b.ne _GenGC_OfsCopy_done
+	add x10, xzr, #-1
+	ldr x9, [x0, #obj_eyecatch] // check eyecatcher
+	cmp x10, x9
+	b.ne _gc_abort
+	ldr x9, [x0, #obj_tag] // check object tag
+	cmp x10, x9
+	b.eq _GenGC_OfsCopy_done
+	cmp x0, x2
+	b.lt _GenGC_OfsCopy_old
+	sub x6, x1, x2 // compute offset
+	add x0, x0, x6 // apply pointer offset
+	ret // return
 _GenGC_OfsCopy_old:
- 	lw	$t1 obj_size($a0)		# get size of object
- 	sll	$t1 $t1 2			# convert words to bytes
- 	beqz	$t1 _GenGC_OfsCopy_forward	# if size = 0, get forwarding pointer
- 	move	$t0 $a0				# save pointer to old object in $t0
- 	addu	$v0 $gp $t1			# test allocation
- 	addiu	$v0 $v0 4
- 	blt	$v0 $s7 _GenGC_OfsCopy_memok	# check if enoguh room for object
- 	sub	$a0 $v0 $s7			# amount to expand minus 1
- 	addiu	$v0 $0 1
- 	sll	$v0 $v0 GenGC_HEAPEXPGRAN
- 	add	$a0 $a0 $v0
- 	addiu	$v0 $v0 -1
- 	nor	$v0 $v0 $v0			# get grain mask
- 	and	$a0 $a0 $v0			# align to grain size
- 	li	$v0 9
- 	syscall					# expand heap
- 	li	$v0 9
- 	move	$a0 $0
- 	syscall					# get end of heap in $v0
- 	move	$s7 $v0				# save heap end in $s7
- 	move	$a0 $t0				# restore pointer to old object in $a0
+	ldr x9, [x1, #obj_size] // get size of object
+	lsl x9, x9, #2 // convert words to bytes
+	cmp x9, xzr 
+	b.eq _GenGC_OfsCopy_forward // if size = 0, get forwarding pointer
+ 	mov x12, x0 // save pointer to old object in $t0
+	add x6, x27, x9 // test allocation
+	add x6, x6, #4
+	cmp x6, x26
+	b.lt _GenGC_OfsCopy_memok
+	sub x0, x6, x26 // amount to expand minus 1
+	add x6, xzr, #1
+	lsl x6, x6, #GenGC_HEAPEXPGRAN
+	add x0, x0, x6
+	add x6, x6, #-1
+	mvn x6, x6 // get grain mask
+	and x0, x0, x6 // align to grain size
+	bl sbrk // expand heap
+	mov x0, #0 // get end of heap in $v0
+	bl sbrk
+	mov x6, x0
+	mov x26, x6 // save heap end in $s7
+	mov x0, x12 // restore pointer to old object in $a0
 _GenGC_OfsCopy_memok:
- 	addiu	$gp $gp 4			# allocate memory for eyecatcher
- 	move	$a0 $gp				# get address of new object
- 	sw	$t2 obj_eyecatch($a0)		# save eye catcher
- 	addu	$t1 $t0 $t1			# set $t1 to limit of copy
- 	move	$t2 $t0				# set $t2 to old object
+ 	add x27, x27, #4 // allocate memory for eyecatcher
+	mov x0, x27 // get address of new object
+	str x10, [x0, #obj_eyecatch] // save eye catcher
+	add x9, x12, x9 // set $t1 to limit of copy
+	mov x10, x12 // set $t2 to old object
 _GenGC_OfsCopy_loop:
- 	lw	$v0 0($t0)			# copy
- 	sw	$v0 0($gp)
- 	addiu	$t0 $t0 4			# update each index
- 	addiu	$gp $gp 4
- 	bne	$t0 $t1 _GenGC_OfsCopy_loop	# check for limit of copy
- 	sw	$0 obj_size($t2)		# set size to 0
- 	sub	$v0 $a1 $a2			# compute offset
- 	add	$a0 $a0 $v0			# apply pointer offset
- 	sw	$a0 obj_disp($t2)		# save forwarding pointer
+ 	ldr x6, [x12, #0] // copy
+	str x6, [x27, #0]
+	add x12, x12, #4 // update each index
+	add x27, x27, #4
+	cmp x12, x9
+	b.ne _GenGC_OfsCopy_loop // check for limit of copy
+	str xzr, [x10, #obj_size] // set size to 0
+	sub x6, x1, x2 // compute offset
+	add x0, x0, x6 // apply pointer offset
+	str x0, [x12, #obj_disp] // save forwarding pointer
 _GenGC_OfsCopy_done:
- 	jr	$ra				# return
+	ret // return
 _GenGC_OfsCopy_forward:
- 	lw	$a0 obj_disp($a0)		# get forwarding pointer
- 	jr	$ra				# return
+	ldr x0, [x0, #obj_disp] // get forwarding pointer
+ 	ret // return
 
 #
 # Major Garbage Collection
@@ -1977,136 +1783,157 @@ _GenGC_OfsCopy_forward:
 
  	.globl _GenGC_MajorC
 _GenGC_MajorC:
- 	addiu	$sp $sp -20
- 	sw	$ra 20($sp)			# save return address
- 	la	$t0 heap_start
- 	lw	$s7 GenGC_HDRL4($t0)		# limit pointer for collection
- 	lw	$gp GenGC_HDRL2($t0)		# allocation pointer for collection
- 	lw	$a1 GenGC_HDRL0($t0)		# set inputs for OfsCopy
- 	lw	$a2 GenGC_HDRL1($t0)
- 	lw	$v1 GenGC_HDRL2($t0)
- 	sw	$a0 16($sp)			# save stack end
- 	lw	$t0 GenGC_HDRSTK($t0)		# set $t0 to stack start
- 	move	$t1 $a0				# set $t1 to stack end
- 	ble	$t0 $t1 _GenGC_MajorC_stackend	# check for empty stack
+	add sp, sp, #-40
+	str x30, [sp, #20] // save return address
+	adr x12, heap_start
+ 	ldr x26, [x12, #GenGC_HDRL4] // limit pointer for collection
+	ldr x27, [x12, #GenGC_HDRL2] // allocation pointer for collection
+	ldr x1, [x12, #GenGC_HDRL0] // set inputs for OfsCopy
+	ldr x2, [x12, #GenGC_HDRL1]
+	ldr x7, [x12, #GenGC_HDRL2]
+	str x0, [sp, #16] // save stack end
+	ldr x12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
+	mov x9, x0 // set $t1 to stack end
+	cmp x12, x9
+	b.le _GenGC_MajorC_stackend // check for empty stack
 _GenGC_MajorC_stackloop: 			# $t1 stack end, $t0 index
- 	addiu	$t0 $t0 -4			# update index
- 	sw	$t0 12($sp)			# save stack index
- 	lw	$a0 4($t0)			# get stack item
- 	jal	_GenGC_OfsCopy			# check and copy
- 	lw	$t0 12($sp)			# load stack index
- 	sw	$a0 4($t0)
- 	lw	$t1 16($sp)			# restore stack end
- 	bgt	$t0 $t1 _GenGC_MajorC_stackloop	# loop
+ 	add x12, x12, #-4 // update index
+	str x12, [sp, #12] // save stack index
+	ldr x0, [x12, #4] // get stack item
+	bl _GenGC_OfsCopy // check and copy
+	ldr x12, [sp, #12] // load stack index
+	str x0, [x12, #4]
+	ldr x9, [sp, #16] // restore stack end
+	cmp x12, x9
+	b.gt _GenGC_MajorC_stackloop // loop
 _GenGC_MajorC_stackend:
- 	la	$t0 heap_start
- 	lw	$t0 GenGC_HDRREG($t0)		# get Register mask
- 	sw	$t0 16($sp)			# save Register mask
+	adr x12, heap_start
+	ldr x12, [x12, #GenGC_HDRREG] // get Register mask
+	str x12, [sp, #16] // save Register mask
 _GenGC_MajorC_reg16:
-	srl	$t0 $t0 16			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg17	# check if set
- 	move	$a0 $16				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$16 $a0				# update register
+	lsr x12, x12, #16 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg17 // check if set
+	mov x0, x19 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x19, x0 // update register
 _GenGC_MajorC_reg17:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 17			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg18	# check if set
- 	move	$a0 $17				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$17 $a0				# update register
+	ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #17 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg18 // check if set
+	mov x0, x20 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x20, x0 // update register
 _GenGC_MajorC_reg18:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 18			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg19	# check if set
- 	move	$a0 $18				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$18 $a0				# update register
+ 	ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #18 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg19 // check if set
+	mov x0, x21 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x21, x0 // update register
 _GenGC_MajorC_reg19:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 19			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg20	# check if set
- 	move	$a0 $19				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$19 $a0				# update register
+ 	ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #19 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg20 // check if set
+	mov x0, x22 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x22, x0 // update register
 _GenGC_MajorC_reg20:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 20			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg21	# check if set
- 	move	$a0 $20				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$20 $a0				# update register
+	ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #20 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg21 // check if set
+	mov x0, x23 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x23, x0 // update register
 _GenGC_MajorC_reg21:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 21			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg22	# check if set
- 	move	$a0 $21				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$21 $a0				# update register
+    ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #21 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg22 // check if set
+	mov x0, x24 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x24, x0 // update register
 _GenGC_MajorC_reg22:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 22			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg24	# check if set
- 	move	$a0 $22				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$22 $a0				# update register
+	ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #22 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg24 // check if set
+	mov x0, x25 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x25, x0 // update register
 _GenGC_MajorC_reg24:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 24			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg25	# check if set
- 	move	$a0 $24				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$24 $a0				# update register
+	ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #24 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg25 // check if set
+	mov x0, x14 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x14, x0 // update register
 _GenGC_MajorC_reg25:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 25			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg30	# check if set
- 	move	$a0 $25				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$25 $a0				# update register
+    ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #25 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg30 // check if set
+	mov x0, x15 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x15, x0 // update register
 _GenGC_MajorC_reg30:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 30			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_reg31	# check if set
- 	move	$a0 $30				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$30 $a0				# update register
+	ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #30 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_reg31 // check if set
+	mov x0, x29 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x29, x0 // update register
 _GenGC_MajorC_reg31:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 31			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MajorC_regend	# check if set
- 	move	$a0 $31				# set test pointer
- 	jal	_GenGC_OfsCopy			# check and copy
- 	move	$31 $a0				# update register
+	ldr x12, [sp, #16] // restore mask
+	lsr x12, x12, #31 // shift to proper bit
+    add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MajorC_regend // check if set
+	mov x0, x30 // set test pointer
+	bl _GenGC_OfsCopy // check and copy
+	mov x30, x0 // update register
 _GenGC_MajorC_regend:
- 	la	$t0 heap_start
- 	lw	$t0 GenGC_HDRL1($t0)		# start of X area
- 	bge	$t0 $gp _GenGC_MajorC_heapend	# check for no objects
+	adr x12, heap_start
+ 	ldr x12, [x12, #GenGC_HDRL1] // start of X area
+	cmp x12, x27
+	b.ge _GenGC_MajorC_heapend // check for no objects
 _GenGC_MajorC_heaploop:				# $t0: index, $gp: limit
- 	addiu	$t0 $t0 4			# skip over eyecatcher
- 	addiu	$t1 $0 -1			# check for eyecatcher
- 	lw	$t2 obj_eyecatch($t0)
- 	bne	$t1 $t2 _GenGC_MajorC_error	# eyecatcher not found
- 	lw	$a0 obj_size($t0)		# get object size
- 	sll	$a0 $a0 2			# words to bytes
- 	lw	$t1 obj_tag($t0)		# get the object's tag
- 	lw	$t2 _int_tag			# test for int object
- 	beq	$t1 $t2 _GenGC_MajorC_int
- 	lw	$t2 _bool_tag			# test for bool object
- 	beq	$t1 $t2 _GenGC_MajorC_bool
- 	lw	$t2 _string_tag			# test for string object
- 	beq	$t1 $t2 _GenGC_MajorC_string
+ 	add x12, x12, #4 // skip over eyecatcher
+	add x9, xzr, #-1 // check for eyecatcher
+	ldr x10, [x12, #obj_eyecatch]
+	cmp x9, x10
+	b.ne _GenGC_MajorC_error // eyecatcher not found
+	ldr x0, [x12, #obj_size] // get object size
+	lsl x0, x0, #2 // words to bytes
+	ldr x9, [x12, #obj_tag] // get the object's tag
+	ldr x10, =_int_tag // test for int object
+	ldr x10, [x10]
+	cmp x9, x10
+	b.eq _GenGC_MajorC_int
+	ldr x10, =_bool_tag // test for bool object
+	ldr x10, [x10]
+	cmp x9, x10
+	b.eq _GenGC_MajorC_bool
+	ldr x10, =_string_tag // test for string object
+	ldr x10, [x10]
+	cmp x9, x10
+	b.eq _GenGC_MajorC_string
 _GenGC_MajorC_other:
  	addi	$t1 $t0 obj_attr		# start at first attribute
  	add	$t2 $t0 $a0			# limit of attributes
