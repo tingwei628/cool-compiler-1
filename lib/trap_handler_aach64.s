@@ -1231,37 +1231,39 @@ _GenGC_Init_error:
 
 	.globl _GenGC_Assign
 _GenGC_Assign:
-	addiu	$s7 $s7 -4
-	sw	$a1 0($s7)			# save pointer to assignment
-	bgt	$s7 $gp _GenGC_Assign_done
-	addiu	$sp $sp -8
-	sw	$ra 8($sp)			# save return address
-	sw	$a0 4($sp)			# sm: save $a0
-	move    $a1 $0				# size
-	addiu	$a0 $sp 0			# end of stack to collect
-	sw      $0 0($sp)                       # play it safe with off-by-1
-	jal	_GenGC_Collect
-	lw	$ra 8($sp)			# restore return address
-	lw	$a0 4($sp)			# restore $a0
-	addiu	$sp $sp 8
+	add x26, x26, #-4
+	str x1, [x26, #0] // save pointer to assignment
+	cmp x26, x27
+	b.gt _GenGC_Assign_done
+	add sp, sp, #-8
+	str x30, [sp, #8] // save return address
+	str x0, [sp, #4] // sm: save $a0
+	mov x1, xzr // size
+	add x0, sp, #0 // end of stack to collect
+	str xzr [sp, #0] // play it safe with off-by-1
+	bl _GenGC_Collect
+	ldr x30, [sp, #8] // restore return address
+	ldr x0, [sp, #4] // restore $a0
+	add sp, sp, #8
 _GenGC_Assign_done:
-	jr	$ra				# return
+	ret // return
 
 	.globl	_gc_check
 _gc_check:
-	beqz	$a1, _gc_ok			# void is ok
-	lw	$a2 obj_eyecatch($a1)		# and check if it is valid
-	addiu	$a2 $a2 1
-	bnez	$a2 _gc_abort
+	cmp x1, xzr
+	b.eq _gc_ok // void is ok
+	ldr x2, [x1, #obj_eyecatch]
+	add x2, x2, #1
+	cmp x2, xzr
+	b.ne _gc_abort
 _gc_ok:
-	jr	$ra
+	ret // return
 
 _gc_abort:		 
-	la      $a0 _gc_abort_msg
-	li	$v0 4
-	syscall                  # print gc message
-	li   	$v0 10
-        syscall			 # exit
+	ldr x0, =_gc_abort_msg
+	bl puts
+	mov x0, #1
+	bl exit // exit(1)
 
 	.globl _GenGC_Collect
 _GenGC_Collect:
