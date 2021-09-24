@@ -1904,82 +1904,159 @@ _GenGC_MinorC_regend:
  	//sw	$t0 16($sp)			# save index limit
  	//bge	$s7 $t0 _GenGC_MinorC_assnend	# check for no assignments
 _GenGC_MinorC_assnloop:				# $s7 index, $t0 limit
- 	lw	$a0 0($s7)			# get table entry
- 	blt	$a0 $t3 _GenGC_MinorC_assnnext	# must point into old area
- 	bge	$a0 $t4 _GenGC_MinorC_assnnext
- 	lw	$a0 0($a0)			# get pointer to check
- 	jal	_GenGC_ChkCopy			# check and copy
- 	lw	$t0 0($s7)
- 	sw	$a0 0($t0)			# update pointer
- 	lw	$t0 16($sp)			# restore index limit
+ 	ldr x0, [x26, #0] // get table entry
+	cmp x0, x11
+	b.lt _GenGC_MinorC_assnnext // must point into old area
+	cmp x0, x13
+	b.ge _GenGC_MinorC_assnnext
+	ldr x0, [x0, #0] // get pointer to check
+	bl _GenGC_ChkCopy // check and copy
+	ldr x12, [x26, #0]
+	str x0, [x12, #0] // update pointer
+	ldr x12, [sp, #16] // restore index limit
+	//lw	$a0 0($s7)			# get table entry
+ 	//blt	$a0 $t3 _GenGC_MinorC_assnnext	# must point into old area
+ 	//bge	$a0 $t4 _GenGC_MinorC_assnnext
+ 	//lw	$a0 0($a0)			# get pointer to check
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//lw	$t0 0($s7)
+ 	//sw	$a0 0($t0)			# update pointer
+ 	//lw	$t0 16($sp)			# restore index limit
 _GenGC_MinorC_assnnext:
- 	addiu	$s7 $s7 4			# update index
- 	blt	$s7 $t0 _GenGC_MinorC_assnloop	# loop
+ 	add x26, x26, #4 // update index
+	cmp x26, x12
+	b.lt _GenGC_MinorC_assnloop // loop
+	//addiu	$s7 $s7 4			# update index
+ 	//blt	$s7 $t0 _GenGC_MinorC_assnloop	# loop
 _GenGC_MinorC_assnend:
- 	la	$t0 heap_start
- 	lw	$t0 GenGC_HDRL1($t0)		# start of reserve area
- 	bge	$t0 $gp _GenGC_MinorC_heapend	# check for no objects
+ 	adr x12, heap_start
+	ldr x12, [x12, #GenGC_HDRL1] // start of reserve area
+	cmp x12, x27
+	b.ge _GenGC_MinorC_heapend // check for no objects
+	//la	$t0 heap_start
+ 	//lw	$t0 GenGC_HDRL1($t0)		# start of reserve area
+ 	//bge	$t0 $gp _GenGC_MinorC_heapend	# check for no objects
 _GenGC_MinorC_heaploop:				# $t0: index, $gp: limit
- 	addiu	$t0 $t0 4			# skip over eyecatcher
- 	addiu	$t1 $0 -1			# check for eyecatcher
- 	lw	$t2 obj_eyecatch($t0)
- 	bne	$t1 $t2 _GenGC_MinorC_error	# eyecatcher not found
- 	lw	$a0 obj_size($t0)		# get object size
- 	sll	$a0 $a0 2			# words to bytes
- 	lw	$t1 obj_tag($t0)		# get the object's tag
- 	lw	$t2 _int_tag			# test for int object
- 	beq	$t1 $t2 _GenGC_MinorC_int
- 	lw	$t2 _bool_tag			# test for bool object
- 	beq	$t1 $t2 _GenGC_MinorC_bool
- 	lw	$t2 _string_tag			# test for string object
- 	beq	$t1 $t2 _GenGC_MinorC_string
+ 	add x12, x12, #4 // skip over eyecatcher
+	add x9, xzr, #-1 // check for eyecatcher
+	ldr x10, [x12, #obj_eyecatch]
+	cmp x9, x10
+	b.ne _GenGC_MinorC_error // eyecatcher not found
+	ldr x0, [x12, #obj_size] // get object size
+	lsl x0, x0, #2 // words to bytes
+	ldr x9, [x12, #obj_tag] // get the object's tag
+	ldr x10, =_int_tag
+	ldr x10, [x10] // test for int object
+	cmp x9, x10
+	b.eq _GenGC_MinorC_int
+	ldr x10, =_bool_tag
+	ldr x10, [x10] // test for bool object 
+	cmp x9, x10
+	b.eq _GenGC_MinorC_bool
+	ldr x10, =_string_tag
+	ldr x10, [x10] // test for string object
+	cmp x9, x10
+	b.eq _GenGC_MinorC_string
+	//addiu	$t0 $t0 4			# skip over eyecatcher
+ 	//addiu	$t1 $0 -1			# check for eyecatcher
+ 	//lw	$t2 obj_eyecatch($t0)
+ 	//bne	$t1 $t2 _GenGC_MinorC_error	# eyecatcher not found
+ 	//lw	$a0 obj_size($t0)		# get object size
+ 	//sll	$a0 $a0 2			# words to bytes
+ 	//lw	$t1 obj_tag($t0)		# get the object's tag
+ 	//lw	$t2 _int_tag			# test for int object
+ 	//beq	$t1 $t2 _GenGC_MinorC_int
+ 	//lw	$t2 _bool_tag			# test for bool object
+ 	//beq	$t1 $t2 _GenGC_MinorC_bool
+ 	//lw	$t2 _string_tag			# test for string object
+ 	//beq	$t1 $t2 _GenGC_MinorC_string
 _GenGC_MinorC_other:
- 	addi	$t1 $t0 obj_attr		# start at first attribute
- 	add	$t2 $t0 $a0			# limit of attributes
- 	bge	$t1 $t2 _GenGC_MinorC_nextobj	# check for no attributes
- 	sw	$t0 16($sp)			# save pointer to object
- 	sw	$a0 12($sp)			# save object size
- 	sw	$t2 4($sp)			# save limit
+ 	add x9, x12, #obj_attr // start at first attribute
+	add x10, x12, x0 // limit of attributes
+	cmp x9, x10
+	b.ge _GenGC_MinorC_nextobj  //check for no attributes
+	str x12, [sp, #16] // save pointer to object
+	str x0, [sp, #12] // save object size
+	str x10, [sp, #4] // save limit
+	//addi	$t1 $t0 obj_attr		# start at first attribute
+ 	//add	$t2 $t0 $a0			# limit of attributes
+ 	//bge	$t1 $t2 _GenGC_MinorC_nextobj	# check for no attributes
+ 	//sw	$t0 16($sp)			# save pointer to object
+ 	//sw	$a0 12($sp)			# save object size
+ 	//sw	$t2 4($sp)			# save limit
 _GenGC_MinorC_objloop:				# $t1: index, $t2: limit
- 	sw	$t1 8($sp)			# save index
- 	lw	$a0 0($t1)			# set pointer to check
- 	jal	_GenGC_ChkCopy			# check and copy
- 	lw	$t1 8($sp)			# restore index
- 	sw	$a0 0($t1)			# update object pointer
- 	lw	$t2 4($sp)			# restore limit
- 	addiu	$t1 $t1 4
- 	blt	$t1 $t2 _GenGC_MinorC_objloop	# loop
+ 	str x9, [sp, #8] // save index
+	ldr x9, [x9, #0] // set pointer to check
+	bl _GenGC_ChkCopy // check and copy
+	ldr x9, [sp, #8] // restore index
+	str x0, [x9, #0] // update object pointer
+	ldr x10, [sp, #4] // restore limit
+	add x9, x9, #4
+	cmp x9, x10
+	b.lt _GenGC_MinorC_objloop // loop
+	//sw	$t1 8($sp)			# save index
+ 	//lw	$a0 0($t1)			# set pointer to check
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//lw	$t1 8($sp)			# restore index
+ 	//sw	$a0 0($t1)			# update object pointer
+ 	//lw	$t2 4($sp)			# restore limit
+ 	//addiu	$t1 $t1 4
+ 	//blt	$t1 $t2 _GenGC_MinorC_objloop	# loop
 _GenGC_MinorC_objend:
- 	lw	$t0 16($sp)			# restore pointer to object
- 	lw	$a0 12($sp)			# restore object size
- 	b	_GenGC_MinorC_nextobj		# next object
+ 	ldr x12, [sp, #16] // restore pointer to object
+	ldr x0, [sp, #12] // restore object size
+	b _GenGC_MinorC_nextobj // next object
+	//lw	$t0 16($sp)			# restore pointer to object
+ 	//lw	$a0 12($sp)			# restore object size
+ 	//b	_GenGC_MinorC_nextobj		# next object
 _GenGC_MinorC_string:
- 	sw	$t0 16($sp)			# save pointer to object
- 	sw	$a0 12($sp)			# save object size
- 	lw	$a0 str_size($t0)		# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	lw	$t0 16($sp)			# restore pointer to object
- 	sw	$a0 str_size($t0)		# update size pointer
- 	lw	$a0 12($sp)			# restore object size
+ 	str x12, [sp, #16] // save pointer to object
+	str x0, [sp, #12] // save object size
+	ldr x0, [x12, #str_size]
+	bl _GenGC_ChkCopy // check and copy
+	ldr x12, [sp, #16] // restore pointer to object
+	str x0, [x12, #str_size] // update size pointer
+	ldr x0, [sp, #12] // restore object size
+	//sw	$t0 16($sp)			# save pointer to object
+ 	//sw	$a0 12($sp)			# save object size
+ 	//lw	$a0 str_size($t0)		# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//lw	$t0 16($sp)			# restore pointer to object
+ 	//sw	$a0 str_size($t0)		# update size pointer
+ 	//lw	$a0 12($sp)			# restore object size
 _GenGC_MinorC_int:
 _GenGC_MinorC_bool:
 _GenGC_MinorC_nextobj:
- 	add	$t0 $t0 $a0			# find next object
- 	blt	$t0 $gp _GenGC_MinorC_heaploop	# loop
+ 	add x12, x12, x0 // find next object
+	cmp x12, x27 // loop
+	b.lt _GenGC_MinorC_heaploop
+	//add	$t0 $t0 $a0			# find next object
+ 	//blt	$t0 $gp _GenGC_MinorC_heaploop	# loop
 _GenGC_MinorC_heapend:
- 	la	$t0 heap_start
- 	sw	$gp GenGC_HDRL2($t0)		# set L2 to $gp
- 	lw	$a0 GenGC_HDRL1($t0)
- 	sub	$a0 $gp $a0			# find size after collection
- 	lw	$ra 20($sp)			# restore return address
- 	addiu	$sp $sp 20
- 	jr	$ra				# return
+ 	adr x12, heap_start
+	str x27, [x12, #GenGC_HDRL2] // set L2 to $gp
+	ldr x0, [x12, #GenGC_HDRL1]
+	sub x0, x27, x0 // find size after collection
+	ldr x30, [sp, #20] // restore return address
+	add sp, sp, #40
+	ret // return
+	//la	$t0 heap_start
+ 	//sw	$gp GenGC_HDRL2($t0)		# set L2 to $gp
+ 	//lw	$a0 GenGC_HDRL1($t0)
+ 	//sub	$a0 $gp $a0			# find size after collection
+ 	//lw	$ra 20($sp)			# restore return address
+ 	//addiu	$sp $sp 20
+ 	//jr	$ra				# return
 _GenGC_MinorC_error:
- 	la	$a0 _GenGC_MINORERROR		# show error message
- 	li	$v0 4
- 	syscall
- 	li	$v0 10				# exit
- 	syscall
+ 	ldr x0, =_GenGC_MINORERROR // show error message
+    bl puts
+	mov x0, #1
+	bl exit // exit(1)
+	//la	$a0 _GenGC_MINORERROR		# show error message
+ 	//li	$v0 4
+ 	//syscall
+ 	//li	$v0 10				# exit
+ 	//syscall
 
 #
 # Check and Copy an Object with an Offset
