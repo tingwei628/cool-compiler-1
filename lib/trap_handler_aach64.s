@@ -1437,25 +1437,7 @@ _GenGC_Collect:
 	mov x12, x9 // set $t0 to max of minor
 	cmp x9, x0
 	b.gt _GenGC_Collect_maxmaj
-	mov x9, x0
-	//addiu	$sp $sp -12
-	//sw	$ra 12($sp)			# save return address
-	//sw	$a0 8($sp)			# save stack end
-	//sw	$a1 4($sp)			# save size
-	//la	$a0 _GenGC_COLLECT		# print collection message
-	//li	$v0 4
-	//syscall
-	//lw	$a0 8($sp)			# restore stack end
-	//jal	_GenGC_MinorC			# minor collection
-	//la	$a1 heap_start
-	//lw	$t1 GenGC_HDRMINOR1($a1)
-	//addu	$t1 $t1 $a0
-	//srl	$t1 $t1 1
-	//sw	$t1 GenGC_HDRMINOR1($a1)	# update histories
-	//sw	$a0 GenGC_HDRMINOR0($a1)
-	//move	$t0 $t1				# set $t0 to max of minor
-	//bgt	$t1 $a0 _GenGC_Collect_maxmaj
-	//move	$t0 $a0
+	mov x12, x0
 _GenGC_Collect_maxmaj:
 	ldr x9, [x1, #GenGC_HDRMAJOR0] // set $t1 to max of major
 	ldr x10, [x1, #GenGC_HDRMAJOR1]
@@ -1545,56 +1527,43 @@ _GenGC_Collect_enough:
 	sub x10, x12, x9 // actual amount to allocate
 	cmp x10, xzr
 	b.gt _GenGC_Collect_getmem // check if really need to allocate
-	//blez	$t0 _GenGC_Collect_setL2	# no need to expand
-	//addiu	$t1 $0 1			# put 1 in $t1
-	//sll	$t1 $t1 GenGC_HEAPEXPGRAN	# get granularity of expansion
-	//addiu	$t1 $t1 -1			# align to granularity
-	//addu	$t0 $t0 $t1
-	//nor	$t1 $t1 $t1
-	//and	$t0 $t0 $t1			# total memory needed
-	//lw	$t1 GenGC_HDRL3($a1)		# load L3
-	//lw	$t2 GenGC_HDRL4($a1)		# load L4
-	//sub	$t1 $t2 $t1
-	//sub	$t2 $t0 $t1			# actual amount to allocate
-	//bgtz	$t2 _GenGC_Collect_getmem	# check if really need to allocate
 _GenGC_Collect_xfermem:
-	lw	$s7 GenGC_HDRL3($a1)		# load L3
- 	addu	$s7 $s7 $t0			# expand by $t0, set $s7
- 	sw	$s7 GenGC_HDRL3($a1)		# save L3
- 	b	_GenGC_Collect_findL2
+	ldr x26, [x1, #GenGC_HDRL3] // load L3
+	add x26, x26, x12 // expand by $t0, set $s7
+	str x26, [x1, #GenGC_HDRL3] // save L3
+	b _GenGC_Collect_findL2
 _GenGC_Collect_getmem:
-	li	$v0 9				# sbrk
-	move	$a0 $t2				# set the size to expand the heap
-	syscall
-	li	$v0 9
-	move	$a0 $zero
-	syscall					# get new end of heap in $v0
-	sw	$v0 GenGC_HDRL4($a1)		# save L4
-	sw	$v0 GenGC_HDRL3($a1)		# save L3
-	move	$s7 $v0				# set $s7
-	b	_GenGC_Collect_findL2
+	mov x0, x10 // set the size to expand the heap
+	bl sbrk
+	mov x0, #0 // get new end of heap in $v0
+	bl sbrk
+	str x0, [x1, #GenGC_HDRL4] // save L4
+	str x0, [x1, #GenGC_HDRL3] // save L3
+	mov x26, x0 // set $s7
+	b _GenGC_Collect_findL2
 _GenGC_Collect_setL2:
-	lw	$s7 GenGC_HDRL3($a1)		# load L3
+	ldr x26, [x1, #GenGC_HDRL3] // load L3
 _GenGC_Collect_findL2:
-	lw	$t1 GenGC_HDRL1($a1)		# load L1
-	sub	$t1 $s7 $t1
-	srl	$t1 $t1 1
-	la	$t0 0xfffffffc
-	and	$t1 $t1 $t0
-	sub	$gp $s7 $t1			# reserve/work barrier
-	sw	$gp GenGC_HDRL2($a1)		# save L2
+	ldr x9, [x1, #GenGC_HDRL1] // load L1
+	sub x9, x26, x9
+	lsr x9, x9, #1
+	ldr x12, =0xfffffffc
+	and x9, x9, x12
+	sub x27, x26, x9 // reserve/work barrier
+	str x27, [x1, #GenGC_HDRL2] // save L2
 _GenGC_Collect_done:
 // Clear new generation to catch missing pointers
 	mov x12, x27
 _GenGC_Clear_loop:
- 	sw	$zero 0($t0)
- 	addiu	$t0 $t0 4
- 	blt	$t0 $s7 _GenGC_Clear_loop
-
- 	lw	$a1 4($sp)			# restore size
- 	lw	$ra 12($sp)			# restore return address
- 	addiu	$sp $sp 12
- 	jr	$ra				# return
+	str xzr, [x12, #0]
+ 	add x12, x12, #4
+	cmp x12, x26
+	b.lt _GenGC_Clear_loop
+	
+	str x1, [sp, #4] // restore size
+	str x30, [sp, #12] // restore return address
+ 	add sp, sp, #24
+	ret // return
 
 #
 # Check and Copy an Object
@@ -1630,37 +1599,44 @@ _GenGC_Clear_loop:
 
 	.globl _GenGC_ChkCopy
 _GenGC_ChkCopy:
- 	blt	$a0 $a1 _GenGC_ChkCopy_done	# check bounds
- 	bge	$a0 $a2 _GenGC_ChkCopy_done
- 	andi	$t2 $a0 1			# check if odd
- 	bnez	$t2 _GenGC_ChkCopy_done
- 	addiu	$t2 $0 -1
- 	lw	$t1 obj_eyecatch($a0)		# check eyecatcher
- 	bne	$t2 $t1 _gc_abort
- 	lw	$t1 obj_tag($a0)		# check object tag
- 	beq	$t2 $t1 _GenGC_ChkCopy_done
- 	lw	$t1 obj_size($a0)		# get size of object
- 	beqz	$t1 _GenGC_ChkCopy_forward	# if size = 0, get forwarding pointer
- 	move	$t0 $a0				# save pointer to old object in $t0
- 	addiu	$gp $gp 4			# allocate memory for eyecatcher
- 	move	$a0 $gp				# get address of new object
- 	sw	$t2 obj_eyecatch($a0)		# save eye catcher
- 	sll	$t1 $t1 2			# convert words to bytes
- 	addu	$t1 $t0 $t1			# set $t1 to limit of copy
- 	move	$t2 $t0				# set $t2 to old object
+ 	cmp x0, x1
+	b.lt _GenGC_ChkCopy_done // check bounds
+	cmp x0, x2
+	b.ge _GenGC_ChkCopy_done
+	and x10, x0, #1 // check if odd
+	cmp x10, xzr
+	b.ne _GenGC_ChkCopy_done
+	add x10, xzr, #-1
+	ldr x9, [x0, #obj_eyecatch] // check eyecatcher
+	cmp x10, x9
+	b.ne _gc_abort
+	ldr x9, [x0, #obj_tag] // check object tag
+	cmp x10, x9
+	b.eq _GenGC_ChkCopy_done
+	ldr x9, [x0, #obj_size] // get size of object
+	cmp  x9, xzr
+	b.eq _GenGC_ChkCopy_forward // if size = 0, get forwarding pointer
+	mov x12, x0 // save pointer to old object in $t0
+	add x27, x27, #4 // allocate memory for eyecatcher
+	mov x0, x27 // get address of new object
+	str x10, [x0, #obj_eyecatch] // save eye catcher
+	lsl x9, x9, #2 // convert words to bytes
+	add x9, x12, x9 // set $t1 to limit of copy
+	mov x10, x12 // set $t2 to old object
 _GenGC_ChkCopy_loop:
- 	lw	$v0 0($t0)			# copy
- 	sw	$v0 0($gp)
- 	addiu	$t0 $t0 4			# update each index
- 	addiu	$gp $gp 4
- 	bne	$t0 $t1 _GenGC_ChkCopy_loop	# check for limit of copy
- 	sw	$0 obj_size($t2)		# set size to 0
- 	sw	$a0 obj_disp($t2)		# save forwarding pointer
+	ldr x6, [x12, #0] // copy
+	str x6, [x27, #0]
+	add x12, x12, #4 // update each index
+	add x27, x27, #4
+ 	cmp x12, x9
+	b.ne _GenGC_ChkCopy_loop // check for limit of copy
+ 	str xzr, [x10, #obj_size] // set size to 0
+	str x0, [x10, #obj_disp] // save forwarding pointer
 _GenGC_ChkCopy_done:
- 	jr	$ra				# return
+	ret // return
 _GenGC_ChkCopy_forward:
- 	lw	$a0 obj_disp($a0)		# get forwarding pointer
- 	jr	$ra				# return
+	ldr x0, [x0, #obj_disp] // get forwarding pointer
+ 	ret // return
 
 
 #
@@ -1720,123 +1696,213 @@ _GenGC_ChkCopy_forward:
 // $s0 ~ $s6 $t8 $t9 $fp $ra
  	.globl _GenGC_MinorC
 _GenGC_MinorC:
- 	addiu	$sp $sp -20
- 	sw	$ra 20($sp)			# save return address
- 	la	$t0 heap_start
- 	lw	$a1 GenGC_HDRL2($t0)		# set lower bound to work area
- 	move	$a2 $s7				# set upper bound for ChkCopy
- 	lw	$gp GenGC_HDRL1($t0)		# set $gp into reserve area
- 	sw	$a0 16($sp)			# save stack end
- 	lw	$t0 GenGC_HDRSTK($t0)		# set $t0 to stack start
- 	move	$t1 $a0				# set $t1 to stack end
- 	ble	$t0 $t1 _GenGC_MinorC_stackend	# check for empty stack
-_GenGC_MinorC_stackloop: 			# $t1 stack end, $t0 index
- 	addiu	$t0 $t0 -4			# update index
- 	sw	$t0 12($sp)			# save stack index
- 	lw	$a0 4($t0)			# get stack item
- 	jal	_GenGC_ChkCopy			# check and copy
- 	lw	$t0 12($sp)			# load stack index
- 	sw	$a0 4($t0)
- 	lw	$t1 16($sp)			# restore stack end
- 	bgt	$t0 $t1 _GenGC_MinorC_stackloop	# loop
+	add sp, sp, #-40
+ 	str x30, [sp, #20] // save return address
+	adr x12, heap_start
+	ldr x1, [x12, #GenGC_HDRL2] // set lower bound to work area
+	mov x2, x26 // set upper bound for ChkCopy
+	ldr x27, [x12, #GenGC_HDRL1] // set $gp into reserve area
+	str x0, [sp, #16] // save stack end
+	ldr x12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
+	mov x9, x0 // set $t1 to stack end
+	cmp x12, x9
+	b.le _GenGC_MinorC_stackend // check for empty stack
+_GenGC_MinorC_stackloop: // $t1 stack end, $t0 index
+ 	add x12, x12, #-4 // update index
+	str x12, [sp, #12] // save stack index
+	ldr x0, [x12, #4] // get stack item
+	bl _GenGC_ChkCopy // check and copy
+	ldr x12, [sp, #12] // load stack index
+	str x0, [x12, #4]
+	ldr x9, [sp, #16] // restore stack end
+	cmp x12, x9 // loop
+	b.gt _GenGC_MinorC_stackloop
 _GenGC_MinorC_stackend:
- 	la	$t0 heap_start
-	lw	$t0 GenGC_HDRREG($t0)		# get Register mask
- 	sw	$t0 16($sp)			# save Register mask
+ 	adr x12, heap_start
+	ldr x12, [x12, #GenGC_HDRREG] // get Register mask
+	str x12, [sp, #16] // save Register mask
 _GenGC_MinorC_reg16:
- 	srl	$t0 $t0 16			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg17	# check if set
- 	move	$a0 $16				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$16 $a0				# update register
+ 	lsr x12, x12, #16 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg17 // check if set
+	mov x0, x19 // set test pointer
+	bl _GenGC_ChkCopy
+	mov x19, x0 // update register
 _GenGC_MinorC_reg17:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 17			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg18	# check if set
- 	move	$a0 $17				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$17 $a0				# update register
+	ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #17 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg18 // check if set
+	mov x0, x20 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x20, x0 // update register
+	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 17			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_reg18	# check if set
+ 	//move	$a0 $17				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$17 $a0				# update register
 _GenGC_MinorC_reg18:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 18			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg19	# check if set
- 	move	$a0 $18				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$18 $a0				# update register
+ 	ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #18 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg19 // check if set
+	mov x0, x21 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x21, x0 // update register
+	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 18			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_reg19	# check if set
+ 	//move	$a0 $18				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$18 $a0				# update register
 _GenGC_MinorC_reg19:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 19			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg20	# check if set
- 	move	$a0 $19				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$19 $a0				# update register
+ 	ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #19 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg20 // check if set
+	mov x0, x22 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x22, x0 // update register
+	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 19			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_reg20	# check if set
+ 	//move	$a0 $19				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$19 $a0				# update register
 _GenGC_MinorC_reg20:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 20			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg21	# check if set
- 	move	$a0 $20				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$20 $a0				# update register
+ 	ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #20 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg21 // check if set
+	mov x0, x23 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x23, x0 // update register
+	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 20			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_reg21	# check if set
+ 	//move	$a0 $20				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$20 $a0				# update register
 _GenGC_MinorC_reg21:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 21			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg22	# check if set
- 	move	$a0 $21				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$21 $a0				# update register
+ 	ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #21 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg22 // check if set
+	mov x0, x24 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x24, x0 // update register
+	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 21			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_reg22	# check if set
+ 	//move	$a0 $21				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$21 $a0				# update register
 _GenGC_MinorC_reg22:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 22			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg24	# check if set
- 	move	$a0 $22				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$22 $a0				# update register
+ 	ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #22 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg24 // check if set
+	mov x0, x25 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x25, x0 // update register
+	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 22			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_reg24	# check if set
+ 	//move	$a0 $22				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$22 $a0				# update register
 _GenGC_MinorC_reg24:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 24			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg25	# check if set
- 	move	$a0 $24				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$24 $a0				# update register
+    ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #24 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg25 // check if set
+	mov x0, x14 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x14, x0 // update register
+ 	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 24			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_reg25	# check if set
+ 	//move	$a0 $24				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$24 $a0				# update register
 _GenGC_MinorC_reg25:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 25			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg30	# check if set
- 	move	$a0 $25				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$25 $a0				# update register
+    ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #25 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg30 // check if set
+	mov x0, x15 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x15, x0 // update register
+ 	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 25			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_reg30	# check if set
+ 	//move	$a0 $25				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$25 $a0				# update register
 _GenGC_MinorC_reg30:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 30			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_reg31	# check if set
- 	move	$a0 $30				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$30 $a0				# update register
+ 	ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #30 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_reg31 // check if set
+	mov x0, x29 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x29, x0 // update register
+	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 30			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_reg31	# check if set
+ 	//move	$a0 $30				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$30 $a0				# update register
 _GenGC_MinorC_reg31:
- 	lw	$t0 16($sp)			# restore mask
- 	srl	$t0 $t0 31			# shift to proper bit
- 	andi	$t1 $t0 1
- 	beq	$t1 $0 _GenGC_MinorC_regend	# check if set
- 	move	$a0 $31				# set test pointer
- 	jal	_GenGC_ChkCopy			# check and copy
- 	move	$31 $a0				# update register
+ 	ldr x12, [sp, #16] // restore mask
+ 	lsr x12, x12, #31 // shift to proper bit
+	add x9, x12, #1
+	cmp x9, xzr
+	b.eq _GenGC_MinorC_regend // check if set
+	mov x0, x30 // set test pointer
+	bl _GenGC_ChkCopy // check and copy
+	mov x30, x0 // update register
+	//lw	$t0 16($sp)			# restore mask
+ 	//srl	$t0 $t0 31			# shift to proper bit
+ 	//andi	$t1 $t0 1
+ 	//beq	$t1 $0 _GenGC_MinorC_regend	# check if set
+ 	//move	$a0 $31				# set test pointer
+ 	//jal	_GenGC_ChkCopy			# check and copy
+ 	//move	$31 $a0				# update register
 _GenGC_MinorC_regend:
- 	la	$t0 heap_start
- 	lw	$t3 GenGC_HDRL0($t0)		# lower limit of old area
- 	lw	$t4 GenGC_HDRL1($t0)		# upper limit of old area
- 	lw	$t0 GenGC_HDRL3($t0)		# get L3
- 	sw	$t0 16($sp)			# save index limit
- 	bge	$s7 $t0 _GenGC_MinorC_assnend	# check for no assignments
+	adr x12, heap_start
+	ldr x11, [x12, #GenGC_HDRL0] // lower limit of old area
+ 	ldr x13, [x12, #GenGC_HDRL1] // upper limit of old area
+	ldr x12, [x12, #GenGC_HDRL3] // get L3
+	str x12, [sp, #16] // save index limit
+	cmp x26, x12
+	b.ge _GenGC_MinorC_assnend // check for no assignments
+	//la	$t0 heap_start
+ 	//lw	$t3 GenGC_HDRL0($t0)		# lower limit of old area
+ 	//lw	$t4 GenGC_HDRL1($t0)		# upper limit of old area
+ 	//lw	$t0 GenGC_HDRL3($t0)		# get L3
+ 	//sw	$t0 16($sp)			# save index limit
+ 	//bge	$s7 $t0 _GenGC_MinorC_assnend	# check for no assignments
 _GenGC_MinorC_assnloop:				# $s7 index, $t0 limit
  	lw	$a0 0($s7)			# get table entry
  	blt	$a0 $t3 _GenGC_MinorC_assnnext	# must point into old area
