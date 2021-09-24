@@ -276,6 +276,7 @@ $v1 -> x7
 // x19 ~ x25 x14 x15 x29 x30
 */
 //.string directive is an alias for .asciz
+_fmt_print_int: .asciz "%d\n" // printf int format
 _abort_msg:	.asciz "Abort called from class "
 _colon_msg:	.asciz ":"
 _dispatch_msg:  .asciz ": Dispatch to void.\n"
@@ -470,93 +471,52 @@ _eq_false:
 	mov x0, x1 // move false into accumulator
 	ret
 
-#
-#  _dispatch_abort
-#
-#      filename in $a0
-#      line number in $t1
-#  
-#  Prints error message and exits.
-#  Called on dispatch to void.
-#
 	.globl	_dispatch_abort
 _dispatch_abort:		 
-        sw      $t1 0($sp)       # save line number
-        addiu   $sp $sp -4
-	addiu   $a0 $a0 str_field # adjust to beginning of string
-	li      $v0 4
-	syscall                  # print file name
-	la      $a0 _colon_msg
-	li	$v0 4
-	syscall                  # print ":"
-	lw      $a0 4($sp)       # 
-	li	$v0 1
-	syscall			 # print line number
-	li 	$v0 4
-	la	$a0 _dispatch_msg
-	syscall			 # print dispatch-to-void message
-	li   	$v0 10
-        syscall			 # exit
+    str x9, [sp, #0] // save line number
+	add sp, sp, #-8
+	add x0, x0, #str_field // adjust to beginning of string
+	bl puts // print file name
+	ldr x0, =_colon_msg
+	bl puts // print ":"
+	ldr x0, =_fmt_print_int
+	ldr x1, [sp, #4]
+	bl printf // print line number
+	ldr x0, =_dispatch_msg
+	bl puts // print dispatch-to-void message
+	mov x0, #1
+	bl exit // exit(1)
 
-
-#
-#  _case_abort2
-#
-#      filename in $a0
-#      line number in $t1
-#  
-#  Prints error message and exits.
-#  Called on case on void.
-#
 	.globl	_case_abort2
 _case_abort2:		 
-        sw      $t1 0($sp)       # save line number
-        addiu   $sp $sp -4
-	addiu   $a0 $a0 str_field # adjust to beginning of string
-	li      $v0 4
-	syscall                  # print file name
-	la      $a0 _colon_msg
-	li	$v0 4
-	syscall                  # print ":"
-	lw      $a0 4($sp)       # 
-	li	$v0 1
-	syscall			 # print line number
-	li 	$v0 4
-	la	$a0 _cabort_msg2
-	syscall			 # print case-on-void message
-	li   	$v0 10
-        syscall			 # exit
-	
-#
-#
-#  _case_abort
-#		Is called when a case statement has no match
-#
-#   INPUT:	$a0 contains the object on which the case was
-#		performed
-#
-#   Does not return!
-#
+    str x9, [sp, #0] // save line number
+	add sp, sp, #-8
+	add x0, x0, #str_field // adjust to beginning of string
+	bl puts // print file name
+	ldr x0, =_colon_msg
+	bl puts // print ":"
+	ldr x0, =_fmt_print_int
+	ldr x1, [sp, #4]
+	bl printf // print line number
+	ldr x0, =_cabort_msg2
+	bl puts // print case-on-void message
+	mov x0, #1
+	bl exit // exit(1)
+
 	.globl	_case_abort
-_case_abort:			# $a0 contains case expression obj.
-	move	$s0 $a0		# save the expression object
-	la	$a0 _cabort_msg
-	li	$v0 4
-	syscall			# print_str
-	la	$t1 class_nameTab
-	lw	$v0 obj_tag($s0)	# Get object tag
-	sll	$v0 $v0 2	# *4
-	addu	$t1 $t1 $v0
-	lw	$t1 0($t1)	# Load class name string obj.
-	addiu	$a0 $t1 str_field # Adjust to beginning of str
-	li	$v0 4		# print_str
-	syscall
-	la	$a0 _nl
-	li	$v0 4		# print_str
-	syscall
-	li	$v0 10
-	syscall			# Exit
-	
+_case_abort:			// $a0 contains case expression obj.
+	mov	x19, x0		// save the expression object
+	ldr x0, =_cabort_msg
+	bl puts // print_str
+	adr x9, class_nameTab
+	ldr x6, [x19, #obj_tag] // Get object tag
+	lsl x6, x6, #2 // *4
+	add x9, x9, x6
+	ldr x9, [x9, #0] // Load class name string obj.
+	add x0, x9, #str_field // Adjust to beginning of str
+	bl puts // print_str
+	mov x0, #1
+	bl exit // exit(1)
 
 #
 # Copy method
