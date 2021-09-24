@@ -241,7 +241,7 @@
 .equ GenGC_OLDRATIO, 2				// 1/(2^2)=.25=25%
 
 .equ MemMgr_REG_MASK, 0x007F0000
-
+.equ NoGC_EXPANDSIZE, 0x10000 // size to expand heap
 /*
 callee register in AArch64
 $s0 -> x19
@@ -1964,76 +1964,12 @@ _GenGC_MajorC_error:
  	mov x0, #1
 	bl exit // exit(1)
 
-#
-# Set the Register (REG) mask
-#
-#   If bit #n is set in the Register mask, register #n will be
-#   automatically updated by the garbage collector.  Note that
-#   this mask is masked (ANDed) with the ARU mask.  Only those
-#   registers in the ARU mask can be updated automatically.
-#
-#   INPUT:
-#	$a0: new Register (REG) mask
-#	heap_start: start of the heap
-#
-#   Registers modified:
-#	$t0
-#
+// 	.globl	_GenGC_QRegMask
+// _GenGC_QRegMask:
+// 	la	$a0 heap_start			# set $a0 to the start of the heap
+// 	lw	$a0 GenGC_HDRREG($a0)		# get the Register mask
+// 	jr	$ra				# return
 
-# 	.globl	_GenGC_SetRegMask
-# _GenGC_SetRegMask:
-# 	li	$t0 GenGC_ARU_MASK		# apply Automatic Register Mask (ARU)
-# 	and	$a0 $a0 $t0
-# 	la	$t0 heap_start			# set $t0 to the start of the heap
-# 	sw	$a0 GenGC_HDRREG($t0)		# save the Register mask
-# 	jr	$ra				# return
-
-#
-# Query the Register (REG) mask
-#
-#   INPUT:
-#	heap_start: start of the heap
-#
-#   OUTPUT:
-#	$a0: current Register (REG) mask
-#
-#   Registers modified:
-#	none
-#
-
-# 	.globl	_GenGC_QRegMask
-# _GenGC_QRegMask:
-# 	la	$a0 heap_start			# set $a0 to the start of the heap
-# 	lw	$a0 GenGC_HDRREG($a0)		# get the Register mask
-# 	jr	$ra				# return
-
-
-#
-# NoGC Garbage Collector
-#
-#   NoGC does not attempt to do any garbage collection.
-#   It simply expands the heap if more memory is needed.
-#
-
-#
-# Some constants
-#
-
-//NoGC_EXPANDSIZE=0x10000				# size to expand heap
-
-#
-# Initialization
-#
-#   INPUT:
-#	none
-#
-#   OUTPUT:
-#	$gp: lower bound of the work area
-#	$s7: upper bound of the work area
-#
-#   Registers modified:
-#	$a0, $v0
-#
 	.globl _NoGC_Init
 _NoGC_Init:
 	adr x27, heap_start // set $gp to the start of the heap
@@ -2042,41 +1978,22 @@ _NoGC_Init:
 	mov x26, x0 // set limit pointer
 	ret
 
-#
-# Collection
-#
-#   Expand the heap as necessary.
-#
-#   INPUT:
-#	$a1: size will need to allocate in bytes
-#	$s7: limit pointer of thw work area
-#	$gp: current allocation pointer
-#
-#   OUTPUT:
-#	$a1: size will need to allocate in bytes (unchanged)
-#
-#   Registers modified:
-#	$t0, $a0, $v0, $gp, $s7
-#
-
 	.globl _NoGC_Collect
 _NoGC_Collect:
-	la	$a0 _NoGC_COLLECT		# show collection message
-	li	$v0 4
-	syscall
+	ldr x0, =_NoGC_COLLECT // show collection message
+	bl puts
 
 _NoGC_Collect_loop:
-	add	$t0 $gp $a1			# test allocation
-	blt	$t0 $s7 _NoGC_Collect_ok	# stop if enough
-	li	$v0 9				# expand heap
-	li	$a0 NoGC_EXPANDSIZE		# set the size to expand the heap
-	syscall					# sbrk
-	li	$v0 9				# get heap end
-	move	$a0 $zero
-	syscall					# sbrk
-	move	$s7 $v0				# set limit pointer
-	b	_NoGC_Collect_loop		# loop
+	add x12, x27, x1 // test allocation
+	cmp x12, x26
+	b.lt _NoGC_Collect_ok // stop if enough
+	mov x0, #NoGC_EXPANDSIZE // set the size to expand the heap
+	bl sbrk // expand heap
+	mov x0, #0 // get heap end
+	bl sbrk
+	mov x6, x0
+	mov x26, x6 // set limit pointer
+	b _NoGC_Collect_loop // loop
 _NoGC_Collect_ok:
-	jr	$ra				# return
-
+	ret // return
 
