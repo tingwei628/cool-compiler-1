@@ -280,7 +280,7 @@ $v1 -> x7
 //.string directive is an alias for .asciz
 _num: .word 0
 _fmt_int_array: .space array_maxsize_read_int
-_fmt_int_size=.-fmt_int_array
+_fmt_int_size=.-_fmt_int_array
 _fmt_read_int: .string "%d"
 _fmt_print_int: .asciz "%d" // printf int format
 _fmt_str_array: .space str_maxsize
@@ -1008,7 +1008,7 @@ _GenGC_Init:
 	lsr x9, x9, #1
 	ldr x6, =0xfffffffc
 	and x9, x9, x6
-	cmp t1, xzr            // heap initially to small
+	cmp x9, xzr            // heap initially to small
 	b.le _GenGC_Init_error //
 	sub	x27, x2, x9
 	str x27, [x12, #GenGC_HDRL2] // save start of work area
@@ -1053,7 +1053,7 @@ _GenGC_Assign:
 	str x0, [sp, #4] // sm: save $a0
 	mov x1, xzr // size
 	add x0, sp, #0 // end of stack to collect
-	str xzr [sp, #0] // play it safe with off-by-1
+	str xzr, [sp, #0] // play it safe with off-by-1
 	bl _GenGC_Collect
 	ldr x30, [sp, #8] // restore return address
 	ldr x0, [sp, #4] // restore $a0
@@ -1175,7 +1175,7 @@ _GenGC_Collect_major:
 _GenGC_Collect_enough:
 	cmp x12, xzr
 	b.le _GenGC_Collect_setL2 // no need to expand
-	add x9, xzr, #1 // put 1 in $t1
+	mov x9, #1 // put 1 in $t1
 	lsl x9, x9, #GenGC_HEAPEXPGRAN // get granularity of expansion
 	add x9, x9, #-1 // align to granularity
 	add x12, x12, x9
@@ -1234,7 +1234,7 @@ _GenGC_ChkCopy:
 	and x10, x0, #1 // check if odd
 	cmp x10, xzr
 	b.ne _GenGC_ChkCopy_done
-	add x10, xzr, #-1
+	mov x10, #-1
 	ldr x9, [x0, #obj_eyecatch] // check eyecatcher
 	cmp x10, x9
 	b.ne _gc_abort
@@ -1421,7 +1421,7 @@ _GenGC_MinorC_assnend:
 	b.ge _GenGC_MinorC_heapend // check for no objects
 _GenGC_MinorC_heaploop:				# $t0: index, $gp: limit
  	add x12, x12, #4 // skip over eyecatcher
-	add x9, xzr, #-1 // check for eyecatcher
+	mov x9, #-1 // check for eyecatcher
 	ldr x10, [x12, #obj_eyecatch]
 	cmp x9, x10
 	b.ne _GenGC_MinorC_error // eyecatcher not found
@@ -1501,7 +1501,7 @@ _GenGC_OfsCopy:
  	and x10, x0, #1 // check if odd
 	cmp x10, xzr
 	b.ne _GenGC_OfsCopy_done
-	add x10, xzr, #-1
+	mov x10, #-1
 	ldr x9, [x0, #obj_eyecatch] // check eyecatcher
 	cmp x10, x9
 	b.ne _gc_abort
@@ -1524,7 +1524,7 @@ _GenGC_OfsCopy_old:
 	cmp x6, x26
 	b.lt _GenGC_OfsCopy_memok
 	sub x0, x6, x26 // amount to expand minus 1
-	add x6, xzr, #1
+	mov x6, #1
 	lsl x6, x6, #GenGC_HEAPEXPGRAN
 	add x0, x0, x6
 	add x6, x6, #-1
@@ -1693,7 +1693,7 @@ _GenGC_MajorC_regend:
 	b.ge _GenGC_MajorC_heapend // check for no objects
 _GenGC_MajorC_heaploop:				# $t0: index, $gp: limit
  	add x12, x12, #4 // skip over eyecatcher
-	add x9, xzr, #-1 // check for eyecatcher
+	mov x9, #-1 // check for eyecatcher
 	ldr x10, [x12, #obj_eyecatch]
 	cmp x9, x10
 	b.ne _GenGC_MajorC_error // eyecatcher not found
