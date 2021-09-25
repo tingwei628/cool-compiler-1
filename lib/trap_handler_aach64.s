@@ -833,18 +833,6 @@ _strcat_argempty:
 	add sp, sp, #40 // pop argument
 	ret // return
 
-#
-#
-# String.substr(i,l)
-#		Returns the sub string of self from i with length l
-#		Offset starts at 0.
-#
-#	INPUT:	$a0 the string
-#		length int object on top of stack (-4)
-#		index int object below length on stack (-8)
-#	OUTPUT:	The substring object in $a0
-#
-
 	.globl	String.substr
 String.substr:
 	add sp, sp, #-24 // frame
