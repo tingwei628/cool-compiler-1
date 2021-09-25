@@ -764,7 +764,7 @@ _instr_nonl:
 String.length:
 	ldr x0, [x0, #str_size] // fetch attr
 	ret // return
-	
+
 	.globl	String.concat
 String.concat:
 	add sp, sp, #-32
@@ -847,60 +847,63 @@ _strcat_argempty:
 
 	.globl	String.substr
 String.substr:
-	addiu	$sp $sp -12		# frame
-	sw	$ra 4($sp)		# save return
-	sw	$a0 12($sp)		# save self
-	sw	$0 8($sp)		# init GC area
-
-	jal	_MemMgr_Test		# test GC area
-
-	lw	$a0 12($sp)
-	lw	$v0 obj_size($a0)
-        la      $a0 Int_protObj		# ask if enough room to allocate
-	lw	$a0 obj_size($a0)	#   a string object, an int object,
-	add	$a0 $a0 $v0		#   and the string data
-	addiu	$a0 $a0 2		# include 2 eyecatchers
-	sll	$a0 $a0 2
-	addi	$a0 $a0 str_maxsize
-	jal	_MemMgr_QAlloc
-
+	add sp, sp, #-24 // frame
+	str x30, [sp, #4] // save return
+	str x0, [sp, #12] // save self
+	str xzr, [sp, #8] // init GC area
+	bl _MemMgr_Test // test GC area
+	ldr x0, [sp, #12]
+	ldr x6, [x0, #obj_size]
+	adr x0, Int_protObj // ask if enough room to allocate
+	ldr x0, [x0, #obj_size] // a string object, an int object,
+	add x0, x0, x6 // and the string data
+	add x0, x0, #2 // include 2 eyecatchers
+	lsl x0, x0, #2
+	add x0, x0, #str_maxsize
+	bl _MemMgr_QAlloc
 _ss_ok:
-	la	$a0 Int_protObj
-	jal	_quick_copy
-	jal	Int_init
-	sw	$a0 8($sp)	# save new length obj
-	la	$a0 String_protObj
-	jal	_quick_copy
-	jal	String_init	# new obj ptr in $a0
-	move	$a2 $a0		# use a2 to make copy
-	addiu	$gp $gp -4	# backup alloc ptr
-	lw	$a1 12($sp)	# load orig
-	lw	$t1 20($sp)	# index obj
-	lw	$t2 16($sp)	# length obj
-	lw	$t0 str_size($a1)
-	lw	$v1 int_slot($t1) # index
-	lw	$v0 int_slot($t0) # size of orig
-	bltz	$v1 _ss_abort1	# index is smaller than 0
-	bgt	$v1 $v0 _ss_abort2	# index > orig
-	lw	$t3 int_slot($t2) # sub length
-	add	$v1 $v1 $t3	# index+sublength
-	bgt	$v1 $v0 _ss_abort3
-	bltz	$t3 _ss_abort4
-	lw	$t4 8($sp)	# load new length obj
-	sw	$t3 int_slot($t4) # save new size
-	sw	$t4 str_size($a0) # store size in string
-	lw	$v1 int_slot($t1) # index
-	addiu	$a1 $a1 str_field # advance src to str
-	add	$a1 $a1 $v1	  # advance to indexed char
-	addiu	$a2 $a2 str_field # advance dst to str
-	beqz	$t3 _ss_end	  # empty length
+	adr x0, Int_protObj
+	bl _quick_copy
+	bl Int_init
+	str x0, [sp, #8] // save new length obj
+	adr x0, String_protObj
+	bl _quick_copy
+	bl String_init // new obj ptr in $a0
+	mov x2, x0 // use a2 to make copy
+	add x27, x27, #-4 // backup alloc ptr
+	ldr x1, [sp, #12] // load orig
+	ldr x9, [sp, #20] // index obj
+	ldr x10, [sp, #16] // length obj
+	ldr x12, [x1, #str_size]
+	ldr x7, [x9, #int_slot] // index
+	ldr x6, [x12, #int_slot] // size of orig
+	cmp x7, xzr
+	b.lt _ss_abort1 // index is smaller than 0
+	cmp x7, x6
+	b.gt _ss_abort2 // index > orig
+	ldr x11, [x10, #int_slot] // sub length
+	add x7, x7, x11 // index+sublength
+	cmp x7, x6
+	b.gt _ss_abort3
+	cmp x11, xzr
+	b.lt _ss_abort4
+	ldr x13, [sp, #8] // load new length obj
+	str x11, [x13, #int_slot] // save new size
+	str x13, [x0, #str_size] // store size in string
+	ldr x7, [x9, #int_slot] // index
+	add x1, x1, #str_field // advance src to str
+	add x1, x1, x7 // advance to indexed char
+	add x2, x2, #str_field // advance dst to str
+	cmp x11, xzr
+	b.eq _ss_end // empty length
 _ss_loop:
-	lb	$v0 0($a1)
-	addiu	$a1 $a1 1	# inc src
-	sb	$v0 0($a2)
-	addiu	$a2 $a2 1	# inc dst
-	addiu	$t3 $t3 -1	# dec ctr
-	bnez	$t3 _ss_loop
+	ldrsb w6, [x1, #0]
+	add x1, x1, #1 // inc src
+	strb w6, [x2, #0]
+	add x2, x2, #1 // inc dst
+	add x11, x11, #-1 // dec ctr
+	cmp x11, xzr
+	b.ne _ss_loop
 _ss_end:
 	sb	$zero 0($a2)	# null terminate (sb rt address ;store byte in rt to address)
 	move	$gp $a2
