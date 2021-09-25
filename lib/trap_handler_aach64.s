@@ -276,6 +276,10 @@ $v1 -> x7
 // x19 ~ x25 x14 x15 x29 x30
 */
 //.string directive is an alias for .asciz
+_num: .word 0
+_fmt_int_array: .space 12
+_fmt_int_size=.-fmt_int_array
+_fmt_read_int: .string "%d"
 _fmt_print_int: .asciz "%d" // printf int format
 _abort_msg:	.asciz "Abort called from class "
 _colon_msg:	.asciz ":"
@@ -643,27 +647,40 @@ IO.out_int:
 
 	.globl	IO.in_int
 IO.in_int:
-	addiu	$sp $sp -4
-	sw	$ra 4($sp)	# save return address
+	add sp, sp, #-8
+	str x30, [sp, #4] // save return address
+	adr x0, Int_protObj
+	bl _quick_copy // Call copy
+	bl Int_init
+	add sp, sp, #-8
+	str x0, [sp, #4] // save new object
 
-        la      $a0 Int_protObj
-        jal     _quick_copy	# Call copy
-        jal     Int_init
-
-	addiu	$sp $sp -4
-	sw	$a0 4($sp)	# save new object
-
-	li	$v0, 5		# read int
-	syscall
-
-	lw	$a0 4($sp)
-	addiu	$sp $sp 4
-
-
-	sw	$v0 int_slot($a0)	# store int read into obj
-	lw	$ra 4($sp)
-	addiu	$sp $sp 4
-	jr	$ra
+    // reset array and num to read int
+    // use memset(arr, 0 ,sizeof(arr)) to clear array
+	ldr x0, =_fmt_int_array
+    ldr x1, #0
+    mov x2, #_fmt_int_size
+    bl memset
+	// reset num to 0
+	ldr x1, =_num
+	str xzr, [x1]
+	// fgets + sscanf to read int 
+    ldr x0, =_fmt_int_array
+    mov x1, #_fmt_int_size
+    ldr x2, =stdin
+    ldr x2, [x2]
+    bl fgets   
+    ldr x1, =_fmt_read_int
+    ldr x2, =_num
+	bl sscanf
+	ldr x6, =_num
+	ldr x6, [x6] // return int from $v0
+	ldr x0, [sp, #4]
+	add sp, sp, #8
+	str x6, [x0, #int_slot] // store int read into obj
+	ldr x30, [sp, #4]
+	add sp, sp, #8
+	ret
 
 	.globl	IO.in_string
 IO.in_string:
@@ -684,7 +701,7 @@ IO.in_string:
 	ldr x12, [sp, #4] // get size object
 	str x12, [x0, #str_size] // store size object in string
 	str x0, [sp, #4] // save string object
-	add x27, x27, #4 // overwrite last word
+	add x27, x27, #-4 // overwrite last word
 	//addiu	$sp $sp -8
 	//sw	$ra 8($sp)			# save return address
 	//sw	$0 4($sp)			# init GC area
