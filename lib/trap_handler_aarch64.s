@@ -575,7 +575,7 @@ _objcopy_allocate:
 	ldr x12, [x0, #obj_size] // get size of object
 	lsl x12, x12, #2 // convert words to bytes
 _objcopy_allocated:
-	add x9, xzr, #-1
+	mov x9, #-1
 	str x9, [x1, #obj_eyecatch] // store eyecatcher
 	add x12, x12, x0 // find limit of copy
 	mov x9, x1 // save source
@@ -727,10 +727,10 @@ _instr_find_end:
 	b.ne _instr_find_end
 	// $gp points just after the null byte
 	ldrsb w6, [x12, #0] // is first byte '\0'?
-	cmp w6, xzr
+	cmp w6, wzr
 	b.ne _instr_noteof
  	//we read nothing. Return '\n' (we don't have '\0'!!!)
- 	add x6, xzr, #10 // load '\n' into $v0
+ 	mov x6, #10 // load '\n' into $v0
 	strb w6, [x27, #-1]
 	strb wzr, [x27, #0] // terminate
 	add x27, x27, #1
@@ -823,7 +823,7 @@ _strcat_copy:
 	add x9, x9, #1
 	cmp x10, x12
 	b.ne _strcat_copy
-	strb wzr [x9, #0] // add '\0'
+	strb wzr, [x9, #0] // add '\0'
 	ldr x30, [sp, #16] // restore return address
 	add sp, sp, #40 // pop argument
 	ret // return
@@ -893,7 +893,7 @@ _ss_loop:
 	cmp x11, xzr
 	b.ne _ss_loop
 _ss_end:
-	strb wzr [x2, #0] // null terminate (sb rt address ;store byte in rt to address)
+	strb wzr, [x2, #0] // null terminate (sb rt address ;store byte in rt to address)
 	mov x27, x2
 	add x27, x27, #4 // realign the heap ptr
 	ldr x12, =0xfffffffc
@@ -942,7 +942,7 @@ _MemMgr_Alloc:
 	mov x1, x0 // size
 	add x0, sp, #4 // end of stack to collect
 	adr x12, _MemMgr_COLLECTOR // pointer to collector function
-	ldr x12, [x12 #0]
+	ldr x12, [x12, #0]
 	blr x12 // garbage collect
     ldr x30, [sp, #4]
 	add sp, sp, #8
