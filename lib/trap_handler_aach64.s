@@ -793,44 +793,53 @@ _instr_noteof:
  	//bne	$v0 10 _instr_nonl
 
  	// Write '\0' over '\n'
-	strb wzr, [x26, #-2] // Set end of string where '\n' was
+	strb wzr, [x27, #-2] // Set end of string where '\n' was
 	add x27, x27, #-1 // adjust for '\n'
  	//sb	$zero -2($gp)			# Set end of string where '\n' was
  	//addiu	$gp $gp -1			# adjust for '\n'
 
 _instr_nonl:
- 	lw	$a0 4($sp)			# get pointer to new str obj
- 	lw	$t1 str_size($a0)		# get pointer to int obj
+ 	ldr x0, [sp, #4] // get pointer to new str obj
+	ldr x9, [x0, #str_size] // get pointer to int obj
+	sub x0, x27, x0
+	sub x12, x12, #str_field // calc actual str size
+	add x12, x12, #-1 // adjust for '\0'
+	str x12, [x9, #int_slot] // store string size in int obj
+	add x27, x27, #3 // was already 1 past '\0'
+	ldr x12, =0xfffffffc
+	and x27, x27, x12 // word align $gp
+	sub x12, x27, x0 // calc length
+	lsr x12, x12, #2 // divide by 4
+	str x12, [x0, #obj_size] // set size field of obj
+	ldr x30, [sp, #8] // restore return address
+	add sp, sp, #8
+	ret // return
 
- 	sub	$t0 $gp $a0
- 	subu	$t0 str_field			# calc actual str size
- 	addiu	$t0  -1				# adjust for '\0'
- 	sw	$t0 int_slot($t1)		# store string size in int obj
- 	addi	$gp $gp 3			# was already 1 past '\0'
- 	la	$t0 0xfffffffc
- 	and	$gp $gp $t0			# word align $gp
+	//lw	$a0 4($sp)			# get pointer to new str obj
+ 	//lw	$t1 str_size($a0)		# get pointer to int obj
 
- 	sub	$t0 $gp $a0			# calc length
- 	srl	$t0 $t0 2			# divide by 4
- 	sw	$t0 obj_size($a0)		# set size field of obj
+ 	//sub	$t0 $gp $a0
+ 	//subu	$t0 str_field			# calc actual str size
+ 	//addiu	$t0  -1				# adjust for '\0'
+ 	//sw	$t0 int_slot($t1)		# store string size in int obj
+ 	//addi	$gp $gp 3			# was already 1 past '\0'
+ 	//la	$t0 0xfffffffc
+ 	//and	$gp $gp $t0			# word align $gp
 
- 	lw	$ra 8($sp)			# restore return address
- 	addiu	$sp $sp 8
- 	jr	$ra				# return
+ 	//sub	$t0 $gp $a0			# calc length
+ 	//srl	$t0 $t0 2			# divide by 4
+ 	//sw	$t0 obj_size($a0)		# set size field of obj
 
-#
-#
-# String.length
-#		Returns Int Obj with string length of self
-#
-#	INPUT:	$a0 the string object
-#	OUTPUT:	$a0 the int object which is the size of the string
-#
+ 	//lw	$ra 8($sp)			# restore return address
+ 	//addiu	$sp $sp 8
+ 	//jr	$ra				# return
 
 	.globl	String.length
 String.length:
-	lw	$a0 str_size($a0)	# fetch attr
-	jr	$ra	# Return
+	ldr x0, [x0, #str_size] // fetch attr
+	ret // return
+	//lw	$a0 str_size($a0)	# fetch attr
+	//jr	$ra	# Return
 
 #
 # String.concat
@@ -846,19 +855,34 @@ String.length:
 
 	.globl	String.concat
 String.concat:
+	add sp, sp, #-32
+	str x30, [sp, #16] // save return address
+	str x0, [sp, #12] // save self arg.
+	str xzr, [sp, #8] // init GC area
+	str xzr, [sp, #4] // init GC area
+	bl _MemMgr_Test // test GC area
+	ldr x0, [sp, #12]
+	ldr x0, [x0, #str_size]
+	bl _quick_copy // Call copy
+	str x0, [sp, #8] // save new size object
+	ldr x9, [sp, #20] // load arg object
+	ldr x9, [x9, #str_size] // get size object
+	ldr x9, [x9, #int_slot] // arg string size
+	cmp x9, xzr
+	b.le _strcat_argempty // nothing to add
 
-	addiu	$sp $sp -16
-	sw	$ra 16($sp)			# save return address
-	sw	$a0 12($sp)			# save self arg.
-	sw	$0 8($sp)			# init GC area
-	sw	$0 4($sp)			# init GC area
+	//addiu	$sp $sp -16
+	//sw	$ra 16($sp)			# save return address
+	//sw	$a0 12($sp)			# save self arg.
+	//sw	$0 8($sp)			# init GC area
+	//sw	$0 4($sp)			# init GC area
 
-	jal	_MemMgr_Test			# test GC area
+	//jal	_MemMgr_Test			# test GC area
 
-	lw	$a0 12($sp)
-	lw	$a0 str_size($a0)
-	jal     _quick_copy			# Call copy
-	sw	$a0 8($sp)			# save new size object
+	//lw	$a0 12($sp)
+	//lw	$a0 str_size($a0)
+	//jal     _quick_copy			# Call copy
+	//sw	$a0 8($sp)			# save new size object
 
 	lw	$t1 20($sp)			# load arg object
 	lw	$t1 str_size($t1)		# get size object
