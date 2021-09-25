@@ -642,12 +642,6 @@ IO.out_int:
 	ldr x0, [sp, #4] // return self
 	add sp, sp, #8 // pop argument
 	ret
-#
-#
-# IO.in_int
-#
-#	Returns an integer object read from the terminal in $a0
-#
 
 	.globl	IO.in_int
 IO.in_int:
@@ -706,30 +700,6 @@ IO.in_string:
 	str x12, [x0, #str_size] // store size object in string
 	str x0, [sp, #4] // save string object
 	add x27, x27, #-4 // overwrite last word
-	//addiu	$sp $sp -8
-	//sw	$ra 8($sp)			# save return address
-	//sw	$0 4($sp)			# init GC area
-
-	//jal	_MemMgr_Test			# test GC area
-
-	//la	$a0 Int_protObj			# Int object for string size
-	//jal	_quick_copy
-	//jal	Int_init
-	//sw	$a0 4($sp)			# save it
-
-	//li	$a0 str_field			# size of string obj. header
-	//addiu	$a0 $a0 str_maxsize		# max size of string data
-	//jal	_MemMgr_QAlloc			# make sure enough room
-
-	//la	$a0 String_protObj		# make string object
-	//jal	_quick_copy
-	//jal	String_init
-	//lw	$t0 4($sp)			# get size object
-	//sw	$t0 str_size($a0)		# store size object in string
-	//sw	$a0 4($sp)			# save string object
-
-	//addiu	$gp $gp -4			# overwrite last word
-
 _instr_ok:
    
     // reset array to read string
@@ -750,10 +720,6 @@ _instr_ok:
 	str xzr, [x1, x0] // // add '\0' (xzr) to end of string
 	mov x27, x1 // move string address to $gp
 	mov x12, x27 // t0 to beginning of string
- 	//move	$a0 $gp	
- 	//li	$v0, 8				# read string
- 	//syscall
- 	//move	$t0 $gp				# t0 to beginning of string
 _instr_find_end:
 	ldrsb w6, [x27, #0]
  	add x27, x27, #1
@@ -763,41 +729,20 @@ _instr_find_end:
 	ldrsb w6, [x12, #0] // is first byte '\0'?
 	cmp w6, xzr
 	b.ne _instr_noteof
-
-	//lb	$v0 0($gp)
- 	//addiu	$gp $gp 1
- 	//bnez	$v0 _instr_find_end
-
- 	# $gp points just after the null byte
- 	//lb	$v0 0($t0)			# is first byte '\0'?
- 	//bnez	$v0 _instr_noteof
-
  	//we read nothing. Return '\n' (we don't have '\0'!!!)
  	add x6, xzr, #10 // load '\n' into $v0
 	strb w6, [x27, #-1]
 	strb wzr, [x27, #0] // terminate
 	add x27, x27, #1
 	b _instr_nonl
-	//add	$v0 $zero 10			# load '\n' into $v0
- 	//sb	$v0 -1($gp)
- 	//sb	$zero 0($gp)			# terminate
- 	//addiu	$gp $gp 1
- 	//b	_instr_nonl
-
 _instr_noteof:
  	// Check if there really is a '\n'
  	ldrsb w6, [x27, #-2]
 	cmp w6, #10
 	b.ne _instr_nonl
-	//lb	$v0 -2($gp)
- 	//bne	$v0 10 _instr_nonl
-
  	// Write '\0' over '\n'
 	strb wzr, [x27, #-2] // Set end of string where '\n' was
 	add x27, x27, #-1 // adjust for '\n'
- 	//sb	$zero -2($gp)			# Set end of string where '\n' was
- 	//addiu	$gp $gp -1			# adjust for '\n'
-
 _instr_nonl:
  	ldr x0, [sp, #4] // get pointer to new str obj
 	ldr x9, [x0, #str_size] // get pointer to int obj
@@ -815,44 +760,11 @@ _instr_nonl:
 	add sp, sp, #8
 	ret // return
 
-	//lw	$a0 4($sp)			# get pointer to new str obj
- 	//lw	$t1 str_size($a0)		# get pointer to int obj
-
- 	//sub	$t0 $gp $a0
- 	//subu	$t0 str_field			# calc actual str size
- 	//addiu	$t0  -1				# adjust for '\0'
- 	//sw	$t0 int_slot($t1)		# store string size in int obj
- 	//addi	$gp $gp 3			# was already 1 past '\0'
- 	//la	$t0 0xfffffffc
- 	//and	$gp $gp $t0			# word align $gp
-
- 	//sub	$t0 $gp $a0			# calc length
- 	//srl	$t0 $t0 2			# divide by 4
- 	//sw	$t0 obj_size($a0)		# set size field of obj
-
- 	//lw	$ra 8($sp)			# restore return address
- 	//addiu	$sp $sp 8
- 	//jr	$ra				# return
-
 	.globl	String.length
 String.length:
 	ldr x0, [x0, #str_size] // fetch attr
 	ret // return
-	//lw	$a0 str_size($a0)	# fetch attr
-	//jr	$ra	# Return
-
-#
-# String.concat
-#
-#   Concatenates arg1 onto the end of self and returns a pointer
-#   to the new object.
-#
-#	INPUT:	$a0: the first string object (self)
-#		Top of stack: the second string object (arg1)
-#
-#	OUTPUT:	$a0 the new string object
-#
-
+	
 	.globl	String.concat
 String.concat:
 	add sp, sp, #-32
@@ -870,80 +782,56 @@ String.concat:
 	ldr x9, [x9, #int_slot] // arg string size
 	cmp x9, xzr
 	b.le _strcat_argempty // nothing to add
-
-	//addiu	$sp $sp -16
-	//sw	$ra 16($sp)			# save return address
-	//sw	$a0 12($sp)			# save self arg.
-	//sw	$0 8($sp)			# init GC area
-	//sw	$0 4($sp)			# init GC area
-
-	//jal	_MemMgr_Test			# test GC area
-
-	//lw	$a0 12($sp)
-	//lw	$a0 str_size($a0)
-	//jal     _quick_copy			# Call copy
-	//sw	$a0 8($sp)			# save new size object
-
-	lw	$t1 20($sp)			# load arg object
-	lw	$t1 str_size($t1)		# get size object
-	lw	$t1 int_slot($t1)		# arg string size
-	blez	$t1 _strcat_argempty		# nothing to add
-	lw	$t0 12($sp)			# load self object
-	lw	$t0 str_size($t0)		# get size object
-	lw	$t0 int_slot($t0)		# self string size
-	addu	$t0 $t0 $t1			# new size
-	sw	$t0 int_slot($a0)		# store new size
-
-	addiu	$a0 $t0 str_field		# size to allocate
-	addiu	$a0 $a0 4			# include '\0', +3 to align
-	la	$t2 0xfffffffc		# 0xfffffffc (= 1111 1111 1111 1111 1111 1111 1111 1100)
-	and	$a0 $a0 $t2			# align on word boundary (& 0xfffffffc which can be divided by 4)
-	addiu   $a0 $a0 1                       # make size odd for GC <-|
-	sw	$a0 4($sp)			# save size in bytes     |
-	addiu	$a0 $a0 3			# include eyecatcher(4) -1
-	jal	_MemMgr_QAlloc			# check memory
-
-	lw	$a0 12($sp)			# copy self
-	jal	_quick_copy			# Call copy
-	lw	$t0 8($sp)			# get the Int object
-	sw	$t0 str_size($a0)		# store it in the str obj.
-
-	sub	$t1 $gp $a0			# bytes allocated by _quick_copy
-	lw	$t0 4($sp)			# get size in bytes (no eyecatcher)
-	sub     $t0 $t0 1                       # Remove extra 1 (was for GC)
-	sub	$t1 $t0 $t1			# more memory needed
-	addu	$gp $gp $t1			# allocate rest
-	srl	$t0 $t0 2			# convert to words
-	sw	$t0 obj_size($a0)		# save new object size
-
-	lw	$t0 12($sp)			# get original self object
-	lw	$t0 str_size($t0)		# get size object
-	lw	$t0 int_slot($t0)		# self string size
-	addiu	$t1 $a0 str_field		# points to start of string data
-	addu	$t1 $t1 $t0			# points to end: '\0'
-	lw	$t0 20($sp)			# load arg object
-	addiu	$t2 $t0 str_field		# points to start of arg data
-	lw	$t0 str_size($t0)		# get arg size
-	lw	$t0 int_slot($t0)
-	addu	$t0 $t0 $t2			# find limit of copy
-
+	ldr x12, [sp, #12] // load self object
+	ldr x12, [x12, #str_size] // get size object
+	ldr x12, [x12, #int_slot] // self string size
+	add x12, x12, x9 // new size
+	str x12, [x0, #int_slot] // store new size
+	add x0, x12, #str_field // size to allocate
+	add x0, x0, #4 // include '\0', +3 to align
+	ldr x10, =0xfffffffc // 0xfffffffc (= 1111 1111 1111 1111 1111 1111 1111 1100)
+	and x0, x0, x10 // align on word boundary (& 0xfffffffc which can be divided by 4)
+	add x0, x0, #1 // make size odd for GC <-|
+	str x0, [sp, #4] // save size in bytes     |
+	add x0, x0, #3 //  save size in bytes     |
+	bl _MemMgr_QAlloc // check memory
+	ldr x0, [sp, #12] // copy self
+	bl _quick_copy // Call copy
+	ldr x12, [sp, #8] // get the Int object
+	str x12, [x0, #str_size] // store it in the str obj.
+	sub x9, x27, x0 // bytes allocated by _quick_copy
+	ldr x12, [sp, #4] // get size in bytes (no eyecatcher)
+	sub x12, x12, #1 // Remove extra 1 (was for GC)
+	sub x9, x12, x9 // more memory needed
+	add x27, x27, x9 // allocate rest
+	lsr x12, x12, #2 // convert to words
+	str x12, [x0, #obj_size] // save new object size
+	ldr x12, [sp, #12] // get original self object
+	ldr x12, [x12, #str_size] // get size object
+	ldr x12, [x12, #int_slot] // self string size
+	add x9, x0, #str_field // points to start of string data
+	add x9, x9, x12 // points to end: '\0'
+	ldr x12, [sp, #20] // load arg object
+	add x10, x12, #str_field // points to start of arg data
+	ldr x12, [x12, #str_size] // get arg size
+	ldr x12, [x12, #int_slot]
+	add x12, x12, x10 // find limit of copy
 _strcat_copy:
- 	lb	$v0 0($t2)			# load from source
- 	sb	$v0 0($t1)			# save in destination
- 	addiu	$t2 $t2 1			# advance each index
- 	addiu	$t1 $t1 1
- 	bne	$t2 $t0 _strcat_copy		# check limit
- 	sb	$0 0($t1)			# add '\0'
-
- 	lw	$ra 16($sp)			# restore return address
- 	addiu	$sp $sp 20			# pop argument
- 	jr	$ra				# return
-
+	ldrsb w6, [x10, #0] // load from source
+	strb w6, [x9, #0] // save in destination
+	add x10, x10, #1 // advance each index
+	add x9, x9, #1
+	cmp x10, x12
+	b.ne _strcat_copy
+	strb wzr [x9, #0] // add '\0'
+	ldr x30, [sp, #16] // restore return address
+	add sp, sp, #40 // pop argument
+	ret // return
 _strcat_argempty:
-	lw	$a0 12($sp)			# load original self
-	lw	$ra 16($sp)			# restore return address
-	addiu	$sp $sp 20			# pop argument
-	jr	$ra				# return
+	ldr x0, [sp, #12] // load original self
+	ldr x30, [sp, #16] // restore return address
+	add sp, sp, #40 // pop argument
+	ret // return
 
 #
 #
