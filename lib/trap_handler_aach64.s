@@ -905,39 +905,34 @@ _ss_loop:
 	cmp x11, xzr
 	b.ne _ss_loop
 _ss_end:
-	sb	$zero 0($a2)	# null terminate (sb rt address ;store byte in rt to address)
-	move	$gp $a2
-	addiu	$gp $gp 4	# realign the heap ptr
-	la	$t0 0xfffffffc
-	and	$gp $gp $t0	# word align $gp
-
-	sub	$t0 $gp $a0	# calc object size
-	srl	$t0 $t0 2	# div by 4 (srl - shift right logical)
-	sw	$t0 obj_size($a0)
-
-	lw	$ra 4($sp)
-	addiu	$sp $sp 20	# pop arguments
-	jr	$ra
-
+	strb wzr [x2, #0] // null terminate (sb rt address ;store byte in rt to address)
+	mov x27, x2
+	add x27, x27, #4 // realign the heap ptr
+	ldr x12, =0xfffffffc
+	and x27, x27, x12 // word align $gp
+	sub x12, x27, x0 // calc object size
+	lsr x12, x12, #2 // div by 4 (srl - shift right logical)
+	str x12, [x0, #obj_size]	
+	ldr x30, [sp, #4]
+	add sp, sp, #40 // pop arguments
+	ret
 _ss_abort1:
-	la	$a0 _sabort_msg1
-	b	_ss_abort
+	ldr	x0, =_sabort_msg1
+	b _ss_abort
 _ss_abort2:
-	la	$a0 _sabort_msg2
-	b	_ss_abort
+	ldr	x0, =_sabort_msg2
+	b _ss_abort
 _ss_abort3:
-	la	$a0 _sabort_msg3
-	b	_ss_abort
+	ldr	x0, =_sabort_msg3
+	b _ss_abort
 _ss_abort4:
-	la	$a0 _sabort_msg4
+	ldr	x0, =_sabort_msg4
 _ss_abort:
-	li	$v0 4
-	syscall
-	la	$a0 _sabort_msg
-	li	$v0 4
-	syscall
-	li	$v0 10		# exit
-	syscall
+	bl puts
+	ldr x0, =_sabort_msg
+	bl puts
+	mov x0, #1
+	bl exit // exit(1)
 
 	.globl _MemMgr_Init
 _MemMgr_Init:
