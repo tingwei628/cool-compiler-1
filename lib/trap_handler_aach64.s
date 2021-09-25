@@ -518,25 +518,6 @@ _case_abort:			// $a0 contains case expression obj.
 	mov x0, #1
 	bl exit // exit(1)
 
-#
-# Copy method
-#
-#   Copies an object and returns a pointer to a new object in
-#   the heap.  Note that to increase performance, the stack frame
-#   is not set up unless it is absolutely needed.  As a result,
-#   the frame is setup just before the call to "_MemMgr_Alloc" and
-#   is destroyed just after it.  The increase in performance
-#   occurs becuase the calls to "_MemMgr_Alloc" happen very
-#   infrequently when the heap needs to be garbage collected.
-#
-#   INPUT:	$a0: object to be copied to free space in heap
-#
-#   OUTPUT:	$a0: points to the newly created copy.
-#
-#   Registers modified:
-#	$t0, $t1, $t2, $t3, $t4, $v0, $v1, $a0, $a1, $a2, $gp, $s7
-#
-
 	.globl	Object.copy
 Object.copy:
 	add sp, sp, #-8 //create stack frame
@@ -544,66 +525,67 @@ Object.copy:
 	str x0, [sp, #4]
 	
 	bl _MemMgr_Test // test GC area
+	ldr x0, [sp, #4] // get object size
+	ldr x0, [x0, #obj_size]
+	cmp x0, xzr
+	b.le _objcopy_error // check for invalid size
+	lsl x0, x0, #2 // convert words to bytes
+	add x0, x0, #4 // account for eyecatcher
+	bl _MemMgr_Alloc // allocate storage
+	add x1, x0, #4 // pointer to new object
+	ldr x0, [sp, #4] // the self object
+	ldr x30, [sp, #8] // restore return address
+	add sp, sp, #8 // remove frame
+	ldr x12, [x0, #obj_size] // get size of object
+	lsl x12, x12, #2 // convert words to bytes
+	b _objcopy_allocated // get on with the copy
 
-	lw	$a0 4($sp)			# get object size
-	lw	$a0 obj_size($a0)
-	blez	$a0 _objcopy_error		# check for invalid size
-	sll	$a0 $a0 2			# convert words to bytes
-	addiu	$a0 $a0 4			# account for eyecatcher
-	jal	_MemMgr_Alloc			# allocate storage
-	addiu	$a1 $a0 4			# pointer to new object
-
-	lw	$a0 4($sp)			# the self object
-	lw	$ra 8($sp)			# restore return address
-	addiu	$sp $sp 8			# remove frame
-	lw	$t0 obj_size($a0)		# get size of object
-	sll	$t0 $t0 2			# convert words to bytes
-	b	_objcopy_allocated		# get on with the copy
-
-# A faster version of Object.copy, for internal use (does not call
-# _MemMgr_Test, and if possible not _MemMgr_Alloc)
+// A faster version of Object.copy, for internal use (does not call
+// _MemMgr_Test, and if possible not _MemMgr_Alloc)
 
 _quick_copy:
-	lw	$t0 obj_size($a0)		# get size of object to copy
-	blez	$t0 _objcopy_error		# check for invalid size
-	sll	$t0 $t0 2			# convert words to bytes
-	addiu	$t1 $t0 4			# account for eyecatcher
-	add	$gp $gp $t1			# allocate memory
-	sub	$a1 $gp $t0			# pointer to new object
-	blt	$gp $s7 _objcopy_allocated	# check allocation
+	ldr x12, [x0, #obj_size] // get size of object to copy
+	cmp x12, xzr
+	b.le _objcopy_error // check for invalid size
+	lsl x12, x12, #2 // convert words to bytes
+	add x9, x12, #4 // account for eyecatcher
+	add x27, x27, x9 // allocate memory
+	sub x1, x27, x12 // pointer to new object
+	cmp x27, x26
+	b.lt _objcopy_allocated // check allocation
 _objcopy_allocate:
-	sub	$gp $a1 4			# restore the original $gp
-	addiu	$sp $sp -8			# frame size
-	sw	$ra 8($sp)			# save return address
-	sw	$a0 4($sp)			# save self
-	move	$a0 $t1				# put bytes to allocate in $a0
-	jal	_MemMgr_Alloc			# allocate storage
-	addiu	$a1 $a0 4			# pointer to new object
-	lw	$a0 4($sp)			# the self object
-	lw	$ra 8($sp)			# restore return address
-	addiu	$sp $sp 8			# remove frame
-	lw	$t0 obj_size($a0)		# get size of object
-	sll	$t0 $t0 2			# convert words to bytes
+	sub x27, x1, #4 // restore the original $gp
+	add sp, sp, #-8 // frame size
+	str x30, [sp, #8] // save return address
+	str x0, [sp, #4] // save self
+	mov x0, x9 // put bytes to allocate in $a0
+	bl _MemMgr_Alloc // allocate storage
+	add x1, x0, #4 // pointer to new object
+	ldr x0, [sp, #4] // the self object
+	ldr x30, [sp, #8] // restore return address
+	add sp, sp, #8 // remove frame
+	ldr x12, [x0, #obj_size] // get size of object
+	lsl x12, x12, #2 // convert words to bytes
 _objcopy_allocated:
-	addiu	$t1 $0 -1
-	sw	$t1 obj_eyecatch($a1)		# store eyecatcher
-	add	$t0 $t0 $a0			# find limit of copy
-	move	$t1 $a1				# save source
-#  _objcopy_loop:
-# 	lw	$v0 0($a0)			# copy word
-# 	sw	$v0 0($t1)
-# 	addiu	$a0 $a0 4			# update source
-# 	addiu	$t1 $t1 4			# update destination
-# 	bne	$a0 $t0 _objcopy_loop		# loop
-# _objcopy_end:
-# 	move	$a0 $a1				# put new object in $a0
-# 	jr	$ra				# return
+	add x9, xzr, #-1
+	str x9, [x1, #obj_eyecatch] // store eyecatcher
+	add x12, x12, x0 // find limit of copy
+	mov x9, x1 // save source
+_objcopy_loop:
+ 	ldr x6, [x0, #0]
+	str x6, [x9, #0] // copy word
+	add x0, x0, #4 // update source
+	add x9, x9, #4 // update destination
+	cmp x0, x12
+	b.ne _objcopy_loop // loop
+_objcopy_end:
+ 	mov x0, x1 // put new object in $a0
+	ret // return
 _objcopy_error:
-	la	$a0 _objcopy_msg		# show error message
-	li	$v0 4
-	syscall
-	li	$v0 10				# exit
-	syscall
+	ldr x0, =_objcopy_msg // show error message
+	bl puts
+	mov x0, #1
+	bl exit // exit(1)
 
 #
 #
