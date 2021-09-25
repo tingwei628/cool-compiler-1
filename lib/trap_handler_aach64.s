@@ -225,6 +225,8 @@
 .equ str_field, 16	// The beginning of the ascii sequence
 .equ str_maxsize, 1026	// the maximum string length
 
+.equ array_maxsize_read_int, 12 // char array size for reading int
+
 .equ GenGC_HDRSIZE, 44				// size of GenGC header
 .equ GenGC_HDRL0, 0					// pointers to GenGC areas
 .equ GenGC_HDRL1, 4
@@ -277,10 +279,12 @@ $v1 -> x7
 */
 //.string directive is an alias for .asciz
 _num: .word 0
-_fmt_int_array: .space 12
+_fmt_int_array: .space array_maxsize_read_int
 _fmt_int_size=.-fmt_int_array
 _fmt_read_int: .string "%d"
 _fmt_print_int: .asciz "%d" // printf int format
+_fmt_str_array: .space str_maxsize
+_fmt_str_size=.- _fmt_str_array
 _abort_msg:	.asciz "Abort called from class "
 _colon_msg:	.asciz ":"
 _dispatch_msg:  .asciz ": Dispatch to void.\n"
@@ -659,7 +663,7 @@ IO.in_int:
     // use memset(arr, 0 ,sizeof(arr)) to clear array
 	ldr x0, =_fmt_int_array
     ldr x1, #0
-    mov x2, #_fmt_int_size
+    mov x2, #array_maxsize_read_int
     bl memset
 	// reset num to 0
 	ldr x1, =_num
@@ -727,36 +731,72 @@ IO.in_string:
 	//addiu	$gp $gp -4			# overwrite last word
 
 _instr_ok:
- 	li	$a1 str_maxsize			# largest string to read
- 	move	$a0 $gp	
- 	li	$v0, 8				# read string
- 	syscall
+   
+    // reset array to read string
+    // use memset(arr, 0 ,sizeof(arr)) to clear array
+	//ldr x0, =_fmt_str_array
+    //ldr x1, #0
+    //mov x2, #str_maxsize
+    //bl memset
 
- 	move	$t0 $gp				# t0 to beginning of string
+ 	ldr x0, =_fmt_str_array
+    mov x1, #_fmt_str_size
+    ldr x2, =stdin
+    ldr x2, [x2]
+    bl fgets // read string
+    bl strlen
+	ldr x1, =_fmt_str_array
+	sub x0, x0, #1 // x0 (strlen return) has len+1, so it needs to reduced by 1
+	str xzr, [x1, x0] // // add '\0' (xzr) to end of string
+	mov x27, x1 // move string address to $gp
+	mov x12, x27 // t0 to beginning of string
+ 	//move	$a0 $gp	
+ 	//li	$v0, 8				# read string
+ 	//syscall
+ 	//move	$t0 $gp				# t0 to beginning of string
 _instr_find_end:
- 	lb	$v0 0($gp)
- 	addiu	$gp $gp 1
- 	bnez	$v0 _instr_find_end
+	ldrsb w6, [x27, #0]
+ 	add x27, x27, #1
+	cmp w6, wzr
+	b.ne _instr_find_end
+	// $gp points just after the null byte
+	ldrsb w6, [x12, #0] // is first byte '\0'?
+	cmp w6, xzr
+	b.ne _instr_noteof
+
+	//lb	$v0 0($gp)
+ 	//addiu	$gp $gp 1
+ 	//bnez	$v0 _instr_find_end
 
  	# $gp points just after the null byte
- 	lb	$v0 0($t0)			# is first byte '\0'?
- 	bnez	$v0 _instr_noteof
+ 	//lb	$v0 0($t0)			# is first byte '\0'?
+ 	//bnez	$v0 _instr_noteof
 
- 	# we read nothing. Return '\n' (we don't have '\0'!!!)
- 	add	$v0 $zero 10			# load '\n' into $v0
- 	sb	$v0 -1($gp)
- 	sb	$zero 0($gp)			# terminate
- 	addiu	$gp $gp 1
- 	b	_instr_nonl
+ 	//we read nothing. Return '\n' (we don't have '\0'!!!)
+ 	add x6, xzr, #10 // load '\n' into $v0
+	strb w6, [x27, #-1]
+	strb wzr, [x27, #0] // terminate
+	add x27, x27, #1
+	b _instr_nonl
+	//add	$v0 $zero 10			# load '\n' into $v0
+ 	//sb	$v0 -1($gp)
+ 	//sb	$zero 0($gp)			# terminate
+ 	//addiu	$gp $gp 1
+ 	//b	_instr_nonl
 
 _instr_noteof:
- 	# Check if there really is a '\n'
- 	lb	$v0 -2($gp)
- 	bne	$v0 10 _instr_nonl
+ 	// Check if there really is a '\n'
+ 	ldrsb w6, [x27, #-2]
+	cmp w6, #10
+	b.ne _instr_nonl
+	//lb	$v0 -2($gp)
+ 	//bne	$v0 10 _instr_nonl
 
- 	# Write '\0' over '\n'
- 	sb	$zero -2($gp)			# Set end of string where '\n' was
- 	addiu	$gp $gp -1			# adjust for '\n'
+ 	// Write '\0' over '\n'
+	strb wzr, [x26, #-2] // Set end of string where '\n' was
+	add x27, x27, #-1 // adjust for '\n'
+ 	//sb	$zero -2($gp)			# Set end of string where '\n' was
+ 	//addiu	$gp $gp -1			# adjust for '\n'
 
 _instr_nonl:
  	lw	$a0 4($sp)			# get pointer to new str obj
