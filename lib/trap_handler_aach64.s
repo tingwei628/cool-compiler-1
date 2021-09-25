@@ -276,7 +276,7 @@ $v1 -> x7
 // x19 ~ x25 x14 x15 x29 x30
 */
 //.string directive is an alias for .asciz
-_fmt_print_int: .asciz "%d\n" // printf int format
+_fmt_print_int: .asciz "%d" // printf int format
 _abort_msg:	.asciz "Abort called from class "
 _colon_msg:	.asciz ":"
 _dispatch_msg:  .asciz ": Dispatch to void.\n"
@@ -587,97 +587,53 @@ _objcopy_error:
 	mov x0, #1
 	bl exit // exit(1)
 
-#
-#
-# Object.abort
-#
-#	The abort method for the object class (usually inherited by
-#	all other classes)
-#
-#   INPUT:	$a0 contains the object on which abort() was dispatched.
-#
-
 	.globl	Object.abort
 Object.abort:
-	move	$s0 $a0		# save self
-	li	$v0 4
-	la	$a0 _abort_msg
-	syscall			# print_str
-	la	$t1 class_nameTab
-	lw	$v0 obj_tag($s0)	# Get object tag
-	sll	$v0 $v0 2	# *4
-	addu	$t1 $t1 $v0
-	lw	$t1 0($t1)	# Load class name string obj.
-	addiu	$a0 $t1 str_field	# Adjust to beginning of str
-	li	$v0 4		# print_str
-	syscall
-	la	$a0 _nl
-	li	$v0 4
-	syscall			# print new line
-	li	$v0 10
-	syscall			# Exit
-
-#
-#
-# Object.type_name	
-#
-#   	INPUT:	$a0 object who's class name is desired
-#	OUTPUT:	$a0 reference to class name string object
-#
+	mov x19, x0 // save self
+	ldr x0, =_abort_msg
+	bl puts // print_str
+	adr x9, class_nameTab
+	ldr x6, [x19, #obj_tag] // Get object tag
+	lsl x6, x6, #2 // *4
+	add x9, x9, x6
+	ldr x9, [x9, #0] // Load class name string obj.
+	add x0, x9, #str_field // Adjust to beginning of str
+	bl puts // print_str
+	mov x0, #1
+	bl exit // exit(1)
 
 	.globl	Object.type_name
 Object.type_name:
-	la	$t1 class_nameTab
-	lw	$v0 obj_tag($a0)	# Get object tag
-	sll	$v0 $v0 2	# *4
-	addu	$t1 $t1 $v0	# index table
-	lw	$a0 0($t1)	# Load class name string obj.
-	jr	$ra
-
-#
-#
-# IO.out_string
-#
-#	Prints out the contents of a string object argument
-#	which is on top of the stack.
-#
-#	$a0 is preserved!
-#
+	adr x9, class_nameTab
+	ldr x6, [x0, #obj_tag] // Get object tag
+	lsl x6, x6, #2 // *4
+	add x9, x9, x6 // index table
+	ldr x0, [x9, #0] // Load class name string obj.
+	ret
 
 	.globl	IO.out_string
 IO.out_string:
-	addiu	$sp $sp -4
-	sw	$a0 4($sp)	# save self
-	lw	$a0 8($sp)	# get arg
-	addiu	$a0 $a0 str_field	# Adjust to beginning of str
-	li	$v0 4		# print_str
-	syscall
-	lw	$a0 4($sp)	# return self
-	addiu	$sp $sp 8	# pop argument
-	jr	$ra
-
-#
-#
-# IO.out_int
-#
-#	Prints out the contents of an integer object on top of the
-#	stack.
-#
-#	$a0 is preserved!
-#
+	add sp, sp, #8
+	str x0, [sp, #4]
+	ldr x0, [sp, #8] // get arg
+	add x0, x0, #str_field
+	bl printf // print_str
+	ldr x0, [sp, #4] // return self
+	add sp, sp, #8 // pop argument
+	ret
 
 	.globl	IO.out_int
 IO.out_int:
-	addiu	$sp $sp -4
-	sw	$a0 4($sp)	# save self
-	lw	$a0 8($sp)	# get arg
-	lw	$a0 int_slot($a0)	# Fetch int
-	li	$v0 1		# print_int
-	syscall	
-	lw	$a0 4($sp)	# return self
-	addiu	$sp $sp 8	# pop argument
-	jr	$ra
-
+	add sp, sp, #-8
+	str x0, [sp, #4] // save self
+	ldr x0, [sp, #8] // get arg
+	ldr x0, [x0, #int_slot] // Fetch int
+	mov x1, x0
+	ldr x0, =_fmt_print_int
+	bl printf // print_int
+	ldr x0, [sp, #4] // return self
+	add sp, sp, #8 // pop argument
+	ret
 #
 #
 # IO.in_int
@@ -709,41 +665,49 @@ IO.in_int:
 	addiu	$sp $sp 4
 	jr	$ra
 
-#
-#
-# IO.in_string
-#
-#	Returns a string object read from the terminal, removing the
-#	'\n'
-#
-#	OUTPUT:	$a0 the read string object
-#
-
 	.globl	IO.in_string
 IO.in_string:
-	addiu	$sp $sp -8
-	sw	$ra 8($sp)			# save return address
-	sw	$0 4($sp)			# init GC area
+	add sp, sp, #-8
+	str x30, [sp, #8] // save return address
+	str xzr, [sp, #4] // init GC area
+	bl _MemMgr_Test // test GC area
+	adr x0, Int_protObj // Int object for string size
+	bl _quick_copy
+	bl Int_init
+	str x0, [sp, #4] // save it
+	mov x0, #str_field // size of string obj. header
+	add x0, x0, #str_maxsize // max size of string data
+	bl _MemMgr_QAlloc // make sure enough room
+	adr x0, String_protObj // make string object
+	bl _quick_copy
+	bl String_init
+	ldr x12, [sp, #4] // get size object
+	str x12, [x0, #str_size] // store size object in string
+	str x0, [sp, #4] // save string object
+	add x27, x27, #4 // overwrite last word
+	//addiu	$sp $sp -8
+	//sw	$ra 8($sp)			# save return address
+	//sw	$0 4($sp)			# init GC area
 
-	jal	_MemMgr_Test			# test GC area
+	//jal	_MemMgr_Test			# test GC area
 
-	la	$a0 Int_protObj			# Int object for string size
-	jal	_quick_copy
-	jal	Int_init
-	sw	$a0 4($sp)			# save it
+	//la	$a0 Int_protObj			# Int object for string size
+	//jal	_quick_copy
+	//jal	Int_init
+	//sw	$a0 4($sp)			# save it
 
-	li	$a0 str_field			# size of string obj. header
-	addiu	$a0 $a0 str_maxsize		# max size of string data
-	jal	_MemMgr_QAlloc			# make sure enough room
+	//li	$a0 str_field			# size of string obj. header
+	//addiu	$a0 $a0 str_maxsize		# max size of string data
+	//jal	_MemMgr_QAlloc			# make sure enough room
 
-	la	$a0 String_protObj		# make string object
-	jal	_quick_copy
-	jal	String_init
-	lw	$t0 4($sp)			# get size object
-	sw	$t0 str_size($a0)		# store size object in string
-	sw	$a0 4($sp)			# save string object
+	//la	$a0 String_protObj		# make string object
+	//jal	_quick_copy
+	//jal	String_init
+	//lw	$t0 4($sp)			# get size object
+	//sw	$t0 str_size($a0)		# store size object in string
+	//sw	$a0 4($sp)			# save string object
 
-	addiu	$gp $gp -4			# overwrite last word
+	//addiu	$gp $gp -4			# overwrite last word
 
 _instr_ok:
  	li	$a1 str_maxsize			# largest string to read
