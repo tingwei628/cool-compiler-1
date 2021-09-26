@@ -409,19 +409,19 @@ Main.main:
 	str	w30, [sp, #4]
 	add	w29, wsp, #8
 	mov	w19, w0
-	adr	w0, str_const1
+	adr	x0, str_const1
 	str	w0, [sp, #0]
 	add	wsp, wsp, #-8
 	mov	w0, w19
 	cmp	w0, wzr
 	b.ne	 label0
-	adr	w0, str_const0
+	adr	x0, str_const0
 	mov	w9, #3
 	bl	_dispatch_abort
 label0:
 	ldr	w9, [x0, #8]
 	ldr	w9, [x9, #12]
-	blr		w9
+	blr		x9
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]

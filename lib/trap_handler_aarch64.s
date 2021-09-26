@@ -403,7 +403,7 @@ _start:
 	mov w0, wsp // initialize the garbage collector	
 	bl	_MemMgr_Init		// sets $gp and $s7 (limit)
 	
-	adr w0, Main_protObj // create the Main object
+	adr x0, Main_protObj // create the Main object
 	bl Object.copy // Call copy
 	add wsp, wsp, #-8
 	str w0, [sp, #4] // save the Main object on the stack
@@ -516,7 +516,7 @@ _case_abort:			// $a0 contains case expression obj.
 	mov	w19, w0		// save the expression object
 	ldr w0, =_cabort_msg
 	bl puts // print_str
-	adr w9, class_nameTab
+	adr x9, class_nameTab
 	ldr w6, [x19, #obj_tag] // Get object tag
 	lsl w6, w6, #2 // *4
 	add w9, w9, w6
@@ -577,7 +577,7 @@ _objcopy_allocate:
 _objcopy_allocated:
 	mov w9, #-1
 	str w9, [x1, #obj_eyecatch] // store eyecatcher
-	add w12, w12, x0 // find limit of copy
+	add w12, w12, w0 // find limit of copy
 	mov w9, w1 // save source
 _objcopy_loop:
  	ldr w6, [x0, #0]
@@ -600,7 +600,7 @@ Object.abort:
 	mov w19, w0 // save self
 	ldr w0, =_abort_msg
 	bl puts // print_str
-	adr w9, class_nameTab
+	adr x9, class_nameTab
 	ldr w6, [x19, #obj_tag] // Get object tag
 	lsl w6, w6, #2 // *4
 	add w9, w9, w6
@@ -612,7 +612,7 @@ Object.abort:
 
 	.globl	Object.type_name
 Object.type_name:
-	adr w9, class_nameTab
+	adr x9, class_nameTab
 	ldr w6, [x0, #obj_tag] // Get object tag
 	lsl w6, w6, #2 // *4
 	add w9, w9, w6 // index table
@@ -647,7 +647,7 @@ IO.out_int:
 IO.in_int:
 	add wsp, wsp, #-8
 	str w30, [sp, #4] // save return address
-	adr w0, Int_protObj
+	adr x0, Int_protObj
 	bl _quick_copy // Call copy
 	bl Int_init
 	add wsp, wsp, #-8
@@ -665,7 +665,7 @@ IO.in_int:
 	// fgets + sscanf to read int 
     ldr w0, =_fmt_int_array
     mov w1, #_fmt_int_size
-    ldr w2, =stdin
+    ldr x2, =stdin
     ldr w2, [x2]
     bl fgets   
     ldr w1, =_fmt_read_int
@@ -686,14 +686,14 @@ IO.in_string:
 	str w30, [sp, #8] // save return address
 	str wzr, [sp, #4] // init GC area
 	bl _MemMgr_Test // test GC area
-	adr w0, Int_protObj // Int object for string size
+	adr x0, Int_protObj // Int object for string size
 	bl _quick_copy
 	bl Int_init
 	str w0, [sp, #4] // save it
 	mov w0, #str_field // size of string obj. header
 	add w0, w0, #str_maxsize // max size of string data
 	bl _MemMgr_QAlloc // make sure enough room
-	adr w0, String_protObj // make string object
+	adr x0, String_protObj // make string object
 	bl _quick_copy
 	bl String_init
 	ldr w12, [sp, #4] // get size object
@@ -711,7 +711,7 @@ _instr_ok:
 
  	ldr w0, =_fmt_str_array
     mov w1, #_fmt_str_size
-    ldr w2, =stdin
+    ldr x2, =stdin
     ldr w2, [x2]
     bl fgets // read string
     bl strlen
@@ -749,7 +749,7 @@ _instr_nonl:
 	sub w0, w27, w0
 	sub w12, w12, #str_field // calc actual str size
 	add w12, w12, #-1 // adjust for '\0'
-	str w12, [w9, #int_slot] // store string size in int obj
+	str w12, [x9, #int_slot] // store string size in int obj
 	add w27, w27, #3 // was already 1 past '\0'
 	ldr w12, =0xfffffffc
 	and w27, w27, w12 // word align $gp
@@ -842,7 +842,7 @@ String.substr:
 	bl _MemMgr_Test // test GC area
 	ldr w0, [sp, #12]
 	ldr w6, [x0, #obj_size]
-	adr w0, Int_protObj // ask if enough room to allocate
+	adr x0, Int_protObj // ask if enough room to allocate
 	ldr w0, [x0, #obj_size] // a string object, an int object,
 	add w0, w0, w6 // and the string data
 	add w0, w0, #2 // include 2 eyecatchers
@@ -850,11 +850,11 @@ String.substr:
 	add w0, w0, #str_maxsize
 	bl _MemMgr_QAlloc
 _ss_ok:
-	adr w0, Int_protObj
+	adr x0, Int_protObj
 	bl _quick_copy
 	bl Int_init
 	str w0, [sp, #8] // save new length obj
-	adr w0, String_protObj
+	adr x0, String_protObj
 	bl _quick_copy
 	bl String_init // new obj ptr in $a0
 	mov w2, w0 // use a2 to make copy
@@ -925,9 +925,9 @@ _ss_abort:
 	.globl _MemMgr_Init
 _MemMgr_Init:
 	str w30, [sp, #-8]! // save return address
-	adr w12, _MemMgr_INITIALIZER // pointer to initialization
+	adr x12, _MemMgr_INITIALIZER // pointer to initialization
 	ldr w12, [x12, #0]
-	blr w12 // initialize
+	blr x12 // initialize
 	ldr w30, [sp], #8 // restore return address
 	ret // return
 
@@ -941,9 +941,9 @@ _MemMgr_Alloc:
 	str w30, [sp, #4] // save return address
 	mov w1, w0 // size
 	add w0, wsp, #4 // end of stack to collect
-	adr w12, _MemMgr_COLLECTOR // pointer to collector function
+	adr x12, _MemMgr_COLLECTOR // pointer to collector function
 	ldr w12, [x12, #0]
-	blr w12 // garbage collect
+	blr x12 // garbage collect
     ldr w30, [sp, #4]
 	add wsp, wsp, #8
 	mov w0, w1 // put size into $a0
@@ -961,9 +961,9 @@ _MemMgr_QAlloc:
 	str w30, [sp, #4] // save return address
 	mov w1, w0 // size
 	add w0, wsp, #4 // end of stack to collect
-	adr w12, _MemMgr_COLLECTOR // pointer to collector function
+	adr x12, _MemMgr_COLLECTOR // pointer to collector function
 	ldr w12, [x12, #0]
-	blr w12 // garbage collect
+	blr x12 // garbage collect
 	ldr w30, [sp, #4] // restore return address
 	add wsp, wsp, #8
 	mov w0, w1 // put size into $a0
@@ -972,7 +972,7 @@ _MemMgr_QAlloc_end:
 
 	.globl	_MemMgr_Test
 _MemMgr_Test:
-	adr w12, _MemMgr_TEST // Check if testing enabled
+	adr x12, _MemMgr_TEST // Check if testing enabled
 	ldr w12, [x12, #0]
 	cmp w12, wzr
 	b.eq _MemMgr_Test_end
@@ -982,9 +982,9 @@ _MemMgr_Test:
 	str w30, [sp, #4]
 	mov w1, #0 // size = 0
 	add w0, wsp, #4 // end of stack to collect
-	adr w12, _MemMgr_COLLECTOR // pointer to collector function
+	adr x12, _MemMgr_COLLECTOR // pointer to collector function
 	ldr w12, [x12, #0]
-	blr w12 // garbage collect
+	blr x12 // garbage collect
 	ldr w30, [sp, #4] // restore return address
 	add wsp, wsp, #8
 
@@ -1000,7 +1000,7 @@ _MemMgr_Test_end:
 
 	.globl _GenGC_Init
 _GenGC_Init:
-	adr w12, heap_start
+	adr x12, heap_start
 	add w9, w12, #GenGC_HDRSIZE
 	str w9, [x12, #GenGC_HDRL0] // save start of old area
 	str w9, [x12, #GenGC_HDRL1] // save start of reserve area
@@ -1024,7 +1024,7 @@ _GenGC_Init:
     bl sbrk
 	mov w6, w0
 	str w6, [x12, #GenGC_HDRL4] // save heap limit
-    adr w12, _MemMgr_TEST // Check if testing enabled
+    adr x12, _MemMgr_TEST // Check if testing enabled
 	ldr w12, [x12, #0]
 	cmp w12, wzr
 	b.eq _MemMgr_Test_false
@@ -1088,7 +1088,7 @@ _GenGC_Collect:
 	bl puts
 	ldr w0, [sp, #8] // restore stack end
 	bl _GenGC_MinorC // minor collection
-	adr w1, heap_start
+	adr x1, heap_start
 	ldr w9, [x1, #GenGC_HDRMINOR1]
 	add w9, w9, w0
 	lsr w9, w9, #1
@@ -1116,7 +1116,7 @@ _GenGC_Collect_maxdef:
 	b.lt _GenGC_Collect_breakpt // set $t0 to minimum of above
 	mov w12, w9
 _GenGC_Collect_breakpt:
-	ldr w9, [w1, #GenGC_HDRL1] // get end of old area
+	ldr w9, [x1, #GenGC_HDRL1] // get end of old area
 	cmp w9, w12
 	b.ge _GenGC_Collect_major
 	ldr w12, [x1, #GenGC_HDRL2]
@@ -1142,7 +1142,7 @@ _GenGC_Collect_major:
 	bl puts
 	ldr w0, [sp, #8] // restore stack end
 	bl _GenGC_MajorC // major collection
-	adr w1, heap_start
+	adr x1, heap_start
 	ldr w9, [x1, #GenGC_HDRMAJOR1]
 	add w9, w9, w0
 	lsr w9, w9, #1
@@ -1270,7 +1270,7 @@ _GenGC_ChkCopy_forward:
 _GenGC_MinorC:
 	add wsp, wsp, #-40
  	str w30, [sp, #20] // save return address
-	adr w12, heap_start
+	adr x12, heap_start
 	ldr w1, [x12, #GenGC_HDRL2] // set lower bound to work area
 	mov w2, w26 // set upper bound for ChkCopy
 	ldr w27, [x12, #GenGC_HDRL1] // set $gp into reserve area
@@ -1290,7 +1290,7 @@ _GenGC_MinorC_stackloop: // $t1 stack end, $t0 index
 	cmp w12, w9 // loop
 	b.gt _GenGC_MinorC_stackloop
 _GenGC_MinorC_stackend:
- 	adr w12, heap_start
+ 	adr x12, heap_start
 	ldr w12, [x12, #GenGC_HDRREG] // get Register mask
 	str w12, [sp, #16] // save Register mask
 _GenGC_MinorC_reg16:
@@ -1348,7 +1348,7 @@ _GenGC_MinorC_reg21:
 	mov w24, w0 // update register
 _GenGC_MinorC_reg22:
  	ldr w12, [sp, #16] // restore mask
- 	lsr w12, x12, #22 // shift to proper bit
+ 	lsr w12, w12, #22 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
 	b.eq _GenGC_MinorC_reg24 // check if set
@@ -1384,7 +1384,7 @@ _GenGC_MinorC_reg30:
 	mov w29, w0 // update register
 _GenGC_MinorC_reg31:
  	ldr w12, [sp, #16] // restore mask
- 	lsr w12, x12, #31 // shift to proper bit
+ 	lsr w12, w12, #31 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
 	b.eq _GenGC_MinorC_regend // check if set
@@ -1392,7 +1392,7 @@ _GenGC_MinorC_reg31:
 	bl _GenGC_ChkCopy // check and copy
 	mov w30, w0 // update register
 _GenGC_MinorC_regend:
-	adr w12, heap_start
+	adr x12, heap_start
 	ldr w11, [x12, #GenGC_HDRL0] // lower limit of old area
  	ldr w13, [x12, #GenGC_HDRL1] // upper limit of old area
 	ldr w12, [x12, #GenGC_HDRL3] // get L3
@@ -1415,7 +1415,7 @@ _GenGC_MinorC_assnnext:
 	cmp w26, w12
 	b.lt _GenGC_MinorC_assnloop // loop
 _GenGC_MinorC_assnend:
- 	adr w12, heap_start
+ 	adr x12, heap_start
 	ldr w12, [x12, #GenGC_HDRL1] // start of reserve area
 	cmp w12, w27
 	b.ge _GenGC_MinorC_heapend // check for no objects
@@ -1479,7 +1479,7 @@ _GenGC_MinorC_nextobj:
 	//add	$t0 $t0 $a0			# find next object
  	//blt	$t0 $gp _GenGC_MinorC_heaploop	# loop
 _GenGC_MinorC_heapend:
- 	adr w12, heap_start
+ 	adr x12, heap_start
 	str w27, [x12, #GenGC_HDRL2] // set L2 to $gp
 	ldr w0, [x12, #GenGC_HDRL1]
 	sub w0, w27, w0 // find size after collection
@@ -1563,7 +1563,7 @@ _GenGC_OfsCopy_forward:
 _GenGC_MajorC:
 	add wsp, wsp, #-40
 	str w30, [sp, #20] // save return address
-	adr w12, heap_start
+	adr x12, heap_start
  	ldr w26, [x12, #GenGC_HDRL4] // limit pointer for collection
 	ldr w27, [x12, #GenGC_HDRL2] // allocation pointer for collection
 	ldr w1, [x12, #GenGC_HDRL0] // set inputs for OfsCopy
@@ -1585,7 +1585,7 @@ _GenGC_MajorC_stackloop: 			# $t1 stack end, $t0 index
 	cmp w12, w9
 	b.gt _GenGC_MajorC_stackloop // loop
 _GenGC_MajorC_stackend:
-	adr w12, heap_start
+	adr x12, heap_start
 	ldr w12, [x12, #GenGC_HDRREG] // get Register mask
 	str w12, [sp, #16] // save Register mask
 _GenGC_MajorC_reg16:
@@ -1598,7 +1598,7 @@ _GenGC_MajorC_reg16:
 	mov w19, w0 // update register
 _GenGC_MajorC_reg17:
 	ldr w12, [sp, #16] // restore mask
-	lsr w12, x12, #17 // shift to proper bit
+	lsr w12, w12, #17 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
 	b.eq _GenGC_MajorC_reg18 // check if set
@@ -1616,7 +1616,7 @@ _GenGC_MajorC_reg18:
 	mov w21, w0 // update register
 _GenGC_MajorC_reg19:
  	ldr w12, [sp, #16] // restore mask
-	lsr w12, x12, #19 // shift to proper bit
+	lsr w12, w12, #19 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
 	b.eq _GenGC_MajorC_reg20 // check if set
@@ -1679,7 +1679,7 @@ _GenGC_MajorC_reg30:
 	mov w29, w0 // update register
 _GenGC_MajorC_reg31:
 	ldr w12, [sp, #16] // restore mask
-	lsr w12, x12, #31 // shift to proper bit
+	lsr w12, w12, #31 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
 	b.eq _GenGC_MajorC_regend // check if set
@@ -1687,7 +1687,7 @@ _GenGC_MajorC_reg31:
 	bl _GenGC_OfsCopy // check and copy
 	mov w30, w0 // update register
 _GenGC_MajorC_regend:
-	adr w12, heap_start
+	adr x12, heap_start
  	ldr w12, [x12, #GenGC_HDRL1] // start of X area
 	cmp w12, w27
 	b.ge _GenGC_MajorC_heapend // check for no objects
@@ -1749,7 +1749,7 @@ _GenGC_MajorC_nextobj:
 	cmp w12, w27
 	b.lt _GenGC_MajorC_heaploop // loop
 _GenGC_MajorC_heapend:
-	adr w12, heap_start
+	adr x12, heap_start
  	ldr w0, [x12, #GenGC_HDRL2] // get end of collection
 	sub w0, w27, w0 // get length after collection
 	ldr w9, [x12, #GenGC_HDRL0] // get L0
@@ -1789,7 +1789,7 @@ _GenGC_MajorC_error:
 _NoGC_Init:
 	add wsp, wsp, #-8
 	str w30, [sp, #4]
-	adr w27, heap_start // set $gp to the start of the heap
+	adr x27, heap_start // set $gp to the start of the heap
 	mov w0, #0 // get heap end
     bl sbrk  // sbrk
 	mov w26, w0 // set limit pointer
