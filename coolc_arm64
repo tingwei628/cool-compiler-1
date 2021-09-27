@@ -1,3 +1,3 @@
 #!/bin/bash
 #cool compiler compile into aarch64 asm
-./assignments/PA2/lexer $* | ./assignments/PA3/parser $* | ./assignments/PA4/semant $* | ./assignments/PA5/cgen_aarch64 $*
+./assignments/PA2/lexer $* | ./assignments/PA3/parser $* | ./assignments/PA4/semant $* | ./assignments/PA5/cgen $*
