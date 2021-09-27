@@ -320,7 +320,7 @@ heap_start:
 	.globl	Bool_init
 	.globl	Main.main
 Object_init:
-	add	wsp, wsp, #-24
+	add	sp, sp, #-24
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
@@ -330,10 +330,10 @@ Object_init:
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	wsp, wsp, #24
+	add	sp, sp, #24
 	ret	
 IO_init:
-	add	wsp, wsp, #-24
+	add	sp, sp, #-24
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
@@ -344,10 +344,10 @@ IO_init:
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	wsp, wsp, #24
+	add	sp, sp, #24
 	ret	
 Int_init:
-	add	wsp, wsp, #-24
+	add	sp, sp, #-24
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
@@ -358,10 +358,10 @@ Int_init:
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	wsp, wsp, #24
+	add	sp, sp, #24
 	ret	
 Bool_init:
-	add	wsp, wsp, #-24
+	add	sp, sp, #-24
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
@@ -372,10 +372,10 @@ Bool_init:
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	wsp, wsp, #24
+	add	sp, sp, #24
 	ret	
 String_init:
-	add	wsp, wsp, #-24
+	add	sp, sp, #-24
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
@@ -386,10 +386,10 @@ String_init:
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	wsp, wsp, #24
+	add	sp, sp, #24
 	ret	
 Main_init:
-	add	wsp, wsp, #-24
+	add	sp, sp, #-24
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
@@ -400,10 +400,10 @@ Main_init:
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	wsp, wsp, #24
+	add	sp, sp, #24
 	ret	
 Main.main:
-	add	wsp, wsp, #-24
+	add	sp, sp, #-24
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
@@ -411,7 +411,7 @@ Main.main:
 	mov	w19, w0
 	adr	x0, str_const1
 	str	w0, [sp, #0]
-	add	wsp, wsp, #-8
+	add	sp, sp, #-8
 	mov	w0, w19
 	cmp	w0, wzr
 	b.ne	 label0
@@ -425,7 +425,7 @@ label0:
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	wsp, wsp, #24
+	add	sp, sp, #24
 	ret	
 
 # end of generated code
