@@ -14,8 +14,6 @@
 
 #include "stringtab.h"
 #define MAXINT  100000000
-// #define WORD_SIZE    4
-// #define LOG_WORD_SIZE 2     // for logical shifts
 
 // Global names
 #define CLASSNAMETAB         "class_nameTab"
@@ -72,16 +70,26 @@
 //
 // register names
 //
-#define ZERO "xzr"		// Zero register
-#define ACC  "x0"		// Accumulator
-#define A1   "x1"		// For arguments to prim funcs
-#define SELF "x19"		// Ptr to self (callee saves)
-#define T1   "x9"		// Temporary 1
-#define T2   "x10"		// Temporary 2
-#define T3   "x11"		// Temporary 3
-#define SP   "sp"		// Stack pointer
-#define FP   "x29"		// Frame pointer
-#define RA   "x30"		// Return address
+#define ZERO  "xzr"		// Zero register (64-bit)
+#define WZERO "wzr"		// Zero register (32-bit)
+#define ACC   "x0"		// Accumulator (64-bit)
+#define WACC  "w0"		// Accumulator (32-bit)
+#define A1    "x1"		// For arguments to prim funcs (64-bit)
+#define WA1   "w1"		// For arguments to prim funcs (32-bit)
+#define SELF  "x19"		// Ptr to self (callee saves) (64-bit)
+#define WSELF "w19"		// Ptr to self (callee saves) (32-bit)
+#define T1    "x9"		// Temporary 1 (64-bit)
+#define WT1   "w9"       // Temporary 1 (32-bit)
+#define T2    "x10"		// Temporary 2 (64-bit)
+#define WT2   "w10"		// Temporary 2 (32-bit)
+#define T3    "x11"		// Temporary 3 (64-bit)
+#define WT3   "w11"		// Temporary 3 (32-bit)
+#define SP    "sp"		// Stack pointer (64-bit)
+#define WSP   "wsp"      // Stack pointer (32-bit)
+#define FP    "x29"		// Frame pointer (64-bit)
+#define WFP   "w29"		// Frame pointer (32-bit)
+#define RA    "x30"		// Return address (64-bit)
+#define WRA   "w30"      // Return address (32-bit)
 
 //
 // Opcodes

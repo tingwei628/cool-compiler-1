@@ -172,13 +172,13 @@ void program_class::cgen(ostream &os)
 
 static void emit_load(char *dest_reg, int offset, char *source_reg, ostream& s)
 {
-    s << LW << dest_reg << " " << "[" << source_reg << ", " << "#" << offset * WORD_SIZE << "]"
+    s << LW << dest_reg << ", " << "[" << source_reg << ", " << "#" << offset * WORD_SIZE << "]"
       << endl;
 }
 
 static void emit_store(char *source_reg, int offset, char *dest_reg, ostream& s)
 {
-    s << SW << source_reg << " " << "[" << dest_reg << ", " << "#" << offset * WORD_SIZE << "]"
+    s << SW << source_reg << ", " << "[" << dest_reg << ", " << "#" << offset * WORD_SIZE << "]"
       << endl;
 }
 
@@ -340,7 +340,7 @@ static void emit_branch(int l, ostream& s)
 static void emit_push(char *reg, ostream& str)
 {
     emit_store(reg,0,SP,str);
-    emit_addiu(SP,SP,-8,str);
+    emit_addiu(SP,SP,-4,str);
 }
 
 //
@@ -361,18 +361,18 @@ static void emit_store_int(char *source, char *dest, ostream& s)
 
 static void emit_test_collector(ostream &s)
 {
-    emit_push(ACC, s);
-    emit_move(ACC, SP, s); // stack end
-    emit_move(A1, ZERO, s); // allocate nothing
+    emit_push(WACC, s);
+    emit_move(WACC, WSP, s); // stack end
+    emit_move(WA1, WZERO, s); // allocate nothing
     s << JAL << gc_collect_names[cgen_Memmgr] << endl;
-    emit_addiu(SP,SP,8,s);
-    emit_load(ACC,0,SP,s);
+    emit_addiu(SP,SP,4,s);
+    emit_load(WACC,0,SP,s);
 }
 
 static void emit_gc_check(char *source, ostream &s)
 {
-    if (strcmp(source, (char*)A1) != 0) {
-        emit_move(A1, source, s);
+    if (strcmp(source, (char*)WA1) != 0) {
+        emit_move(WA1, source, s);
     }
     s << JAL << "_gc_check" << endl;
 }
@@ -1206,16 +1206,16 @@ void CgenClassTable::code_initializers()
 
         str << cls->get_name() << CLASSINIT_SUFFIX << LABEL;
 
-        emit_addiu(SP, SP, -24, str);
-        emit_store(FP, 3, SP, str);
-        emit_store(SELF, 2, SP, str);
-        emit_store(RA, 1, SP, str);
-        emit_addiu(FP, SP, 8, str);
-        emit_move(SELF, ACC, str);
+        emit_addiu(SP, SP, -12, str);
+        emit_store(WFP, 3, SP, str);
+        emit_store(WSELF, 2, SP, str);
+        emit_store(WRA, 1, SP, str);
+        emit_addiu(WFP, WSP, 4, str);
+        emit_move(WSELF, WACC, str);
 
         if (cls->get_name() != Object) {
             // initialize parent class first
-            str << "\tjal " << cls->get_parent() << CLASSINIT_SUFFIX << endl;
+            str << "\tbl " << cls->get_parent() << CLASSINIT_SUFFIX << endl;
         }
 
         Environment env;
@@ -1230,15 +1230,15 @@ void CgenClassTable::code_initializers()
 
             if (at && !at->get_init()->is_empty()) {
                 at->get_init()->code(str, env);
-                emit_store(ACC, DEFAULT_OBJFIELDS + env.get_cls_attr_pos(at->get_name()), SELF, str);
+                emit_store(WACC, DEFAULT_OBJFIELDS + env.get_cls_attr_pos(at->get_name()), SELF, str);
             }
         }
 
-        emit_move(ACC, SELF, str);
-        emit_load(FP, 3, SP, str);
-        emit_load(SELF, 2, SP, str);
-        emit_load(RA, 1, SP, str);
-        emit_addiu(SP, SP, 24, str);
+        emit_move(WACC, WSELF, str);
+        emit_load(WFP, 3, SP, str);
+        emit_load(WSELF, 2, SP, str);
+        emit_load(WRA, 1, SP, str);
+        emit_addiu(SP, SP, 12, str);
 
         emit_return(str);
     }
@@ -1395,15 +1395,15 @@ void method_class::code(ostream &s, Environment &env)
     s << LABEL;
 
     // make space in the stack
-    emit_addiu(SP, SP, -(DEFAULT_OBJFIELDS * 8), s);
+    emit_addiu(SP, SP, -(DEFAULT_OBJFIELDS * 4), s);
     // save old $fp, self and $ra values
-    emit_store(FP, 3, SP, s);
-    emit_store(SELF, 2, SP, s);
-    emit_store(RA, 1, SP, s);
+    emit_store(WFP, 3, SP, s);
+    emit_store(WSELF, 2, SP, s);
+    emit_store(WRA, 1, SP, s);
     // set fp to point to old $ra
-    emit_addiu(FP, SP, 8, s);
+    emit_addiu(WFP, WSP, 4, s);
     // move acc to self
-    emit_move(SELF, ACC, s);
+    emit_move(WSELF, WACC, s);
 
     for(int i = formals->first(); formals->more(i); i = formals->next(i)) {
         env.add_mth_arg(formals->nth(i));
@@ -1412,12 +1412,12 @@ void method_class::code(ostream &s, Environment &env)
     expr->code(s, env);
 
     // restore $fp, self and $ra
-    emit_load(FP, 3, SP, s);
-    emit_load(SELF, 2, SP, s);
-    emit_load(RA, 1, SP, s);
+    emit_load(WFP, 3, SP, s);
+    emit_load(WSELF, 2, SP, s);
+    emit_load(WRA, 1, SP, s);
 
     // destroy the stack frame
-    emit_addiu(SP, SP, (DEFAULT_OBJFIELDS + env.get_mth_args_size()) * 8, s);
+    emit_addiu(SP, SP, (DEFAULT_OBJFIELDS + env.get_mth_args_size()) * 4, s);
     env.clear_mth_args();
 
     s << RET << "\n";
@@ -1430,10 +1430,10 @@ void assign_class::code(ostream &s, Environment &env) {
     pos = env.get_let_var_pos_rev(name);
     if (pos != -1) {
         offset = pos + 1;
-        emit_store(ACC, offset, SP, s);
+        emit_store(WACC, offset, SP, s);
 
         if (cgen_Memmgr == GC_GENGC) {
-            emit_addiu(A1, SP, 8 * offset, s);
+            emit_addiu(WA1, WSP, 4 * offset, s);
             emit_gc_assign(s);
         }
         return;
@@ -1442,10 +1442,10 @@ void assign_class::code(ostream &s, Environment &env) {
     pos = env.get_arg_pos(name);
     if (pos != -1) {
         offset = 2 + env.get_mth_args_size() - pos;
-        emit_store(ACC, offset, FP, s);
+        emit_store(WACC, offset, FP, s);
 
         if (cgen_Memmgr == GC_GENGC) {
-            emit_addiu(A1, FP, 4 * offset, s);
+            emit_addiu(WA1, WFP, 4 * offset, s);
             emit_gc_assign(s);
         }
         return;
@@ -1454,10 +1454,10 @@ void assign_class::code(ostream &s, Environment &env) {
     pos = env.get_cls_attr_pos(name);
     if (pos != -1) {
         offset = DEFAULT_OBJFIELDS + pos;
-        emit_store(ACC, offset, SELF, s);
+        emit_store(WACC, offset, SELF, s);
 
         if (cgen_Memmgr == GC_GENGC) {
-            emit_addiu(A1, SELF, 4 * offset, s);
+            emit_addiu(WA1, WSELF, 4 * offset, s);
             emit_gc_assign(s);
         }
         return;
@@ -1469,7 +1469,7 @@ void static_dispatch_class::code(ostream &s, Environment &env) {
 
     for (int i = actual->first(); actual->more(i); i = actual->next(i)) {
         actual->nth(i)->code(s, env);
-        emit_push(ACC, s);
+        emit_push(WACC, s);
         env.push_stack_symbol(No_type);
 
         num_params++;
@@ -1480,13 +1480,13 @@ void static_dispatch_class::code(ostream &s, Environment &env) {
 
     // catch dispatch on void
     // if $a0 != 0 then jump to labelx
-    emit_bne(ACC, ZERO, label_num, s);
+    emit_bne(WACC, WZERO, label_num, s);
 
     //s << "\tla\t" << ACC << " ";
     emit_partial_load_address(ACC, s);
     stringtable.lookup_string(env.get_cls()->get_filename()->get_string())->code_ref(s);
     s << endl;
-    emit_load_imm(T1, get_line_number(), s);
+    emit_load_imm(WT1, get_line_number(), s);
     emit_jal("_dispatch_abort", s);
 
     // labelx...
@@ -1505,7 +1505,7 @@ void static_dispatch_class::code(ostream &s, Environment &env) {
     }
 
     // $t1 += offset_to_proper_func
-    emit_load(T1, i, T1, s);
+    emit_load(WT1, i, T1, s);
     // set $ra to next instruction and jump to $t1
     emit_jalr(T1, s);
 
@@ -1521,7 +1521,7 @@ void dispatch_class::code(ostream &s, Environment &env) {
 
     for (int i = actual->first(); actual->more(i); i = actual->next(i)) {
         actual->nth(i)->code(s, env);
-        emit_push(ACC, s);
+        emit_push(WACC, s);
         env.push_stack_symbol(No_type);
 
         num_params++;
@@ -1532,19 +1532,19 @@ void dispatch_class::code(ostream &s, Environment &env) {
 
     // catch dispatch on void
     // if $a0 != 0 then jump to labelx
-    emit_bne(ACC, ZERO, label_num, s);
+    emit_bne(WACC, WZERO, label_num, s);
 
     emit_partial_load_address(ACC, s);
     stringtable.lookup_string(env.get_cls()->get_filename()->get_string())->code_ref(s);
     s << endl;
-    emit_load_imm(T1, get_line_number(), s);
+    emit_load_imm(WT1, get_line_number(), s);
     emit_jal("_dispatch_abort", s);
 
     // labelx...
     emit_label_def(label_num++, s);
 
     // $t1 = expr_obj.dispatch_pointer
-    emit_load(T1, 2, ACC, s);
+    emit_load(WT1, 2, ACC, s);
 
     Class_ cls = env.get_cls();
     if (expr->get_type() != SELF_TYPE) {
@@ -1559,7 +1559,7 @@ void dispatch_class::code(ostream &s, Environment &env) {
     }
 
     // $t1 += offset_to_proper_func
-    emit_load(T1, i, T1, s);
+    emit_load(WT1, i, T1, s);
     // set $ra to next instruction and jump to $t1
     emit_jalr(T1, s);
 
@@ -1572,12 +1572,12 @@ void dispatch_class::code(ostream &s, Environment &env) {
 
 void cond_class::code(ostream &s, Environment &env) {
     pred->code(s, env);
-    emit_fetch_int(T1, ACC, s);
+    emit_fetch_int(WT1, ACC, s);
 
     int label_false = label_num++;
     int label_end = label_num++;
 
-    emit_beq(T1, ZERO, label_false, s);
+    emit_beq(WT1, WZERO, label_false, s);
     then_exp->code(s, env);
     emit_branch(label_end, s);
 
@@ -1595,8 +1595,8 @@ void loop_class::code(ostream &s, Environment &env) {
 
     pred->code(s, env);
 
-    emit_fetch_int(T1, ACC, s);
-    emit_beq(T1, ZERO, label_exit, s);
+    emit_fetch_int(WT1, ACC, s);
+    emit_beq(WT1, WZERO, label_exit, s);
 
     body->code(s, env);
     emit_branch(label_loop, s);
@@ -1604,7 +1604,7 @@ void loop_class::code(ostream &s, Environment &env) {
     emit_label_def(label_exit, s);
 
     // loop always returns void
-    emit_move(ACC, ZERO, s);
+    emit_move(WACC, WZERO, s);
 }
 
 void typcase_class::code(ostream &s, Environment &env) {
@@ -1612,15 +1612,15 @@ void typcase_class::code(ostream &s, Environment &env) {
 
     // push expr onto the stack
     // the name of the env whichs binds to this value will be pushed later
-    emit_push(ACC, s);
+    emit_push(WACC, s);
 
     // check case on void
-    emit_bne(ACC, ZERO, label_num, s);
+    emit_bne(WACC, WZERO, label_num, s);
 
     emit_partial_load_address(ACC, s);
     stringtable.lookup_string(env.get_cls()->get_filename()->get_string())->code_ref(s);
     s << endl;
-    emit_load_imm(T1, get_line_number(), s);
+    emit_load_imm(WT1, get_line_number(), s);
     emit_jal("_case_abort2", s);
 
     // expr was not void, execution continues here. $a0 holds expr object
@@ -1631,14 +1631,14 @@ void typcase_class::code(ostream &s, Environment &env) {
     int label_tag_is_valid = label_num++;
 
     // $t1 = expr_obj.tag
-    emit_load(T1, TAG_OFFSET, ACC, s);
+    emit_load(WT1, TAG_OFFSET, ACC, s);
 
     // everytime we jump back here, T1 contains the tag of a new class
     // if T1 is ever equal to INVALID_CLASSTAG it means that the case statement
     // has no match which is a runtime error
     emit_label_def(label_begin, s);
-    emit_load_imm(T2, INVALID_CLASSTAG, s);
-    emit_bne(T1, T2, label_tag_is_valid, s);
+    emit_load_imm(WT2, INVALID_CLASSTAG, s);
+    emit_bne(WT1, WT2, label_tag_is_valid, s);
     emit_jal("_case_abort", s);
 
     // let's check if any of the branches have a type that matches exactly
@@ -1649,9 +1649,9 @@ void typcase_class::code(ostream &s, Environment &env) {
 
     for (int i = cases->first(); cases->more(i); i = cases->next(i)) {
         // $t2 = branch_i.tag
-        emit_load_imm(T2, get_class_tag(cases->nth(i)->get_type_decl()), s);
+        emit_load_imm(WT2, get_class_tag(cases->nth(i)->get_type_decl()), s);
         // if $t1 == $t2 jump to the label for the corresponding branch
-        emit_beq(T1, T2, label_num++, s);
+        emit_beq(WT1, WT2, label_num++, s);
     }
 
     // none of the tags matched, so let's try get t1's parent and try again
@@ -1661,13 +1661,13 @@ void typcase_class::code(ostream &s, Environment &env) {
 
     // calculate the offset in the parent_table. $t1 holds the type's tag
     // $t3 = $t1 * 4
-    emit_load_imm(T3, 4, s);
-    emit_mul(T3, T1, T3, s);
+    emit_load_imm(WT3, 4, s);
+    emit_mul(WT3, WT1, WT3, s);
     // $t2 += $t3
-    emit_add(T2, T2, T3, s);
+    emit_add(WT2, WT2, WT3, s);
 
     // set $t1 to the class tag of the parent of the old $t1 value
-    emit_load(T1, 0, T2, s);
+    emit_load(WT1, 0, T2, s);
 
     // let's go back and try again
     emit_branch(label_begin, s);
@@ -1688,7 +1688,7 @@ void typcase_class::code(ostream &s, Environment &env) {
     emit_label_def(label_end, s);
 
     // pop expr from the stack
-    emit_addiu(SP, SP, 8, s);
+    emit_addiu(SP, SP, 4, s);
 }
 
 void block_class::code(ostream &s, Environment &env) {
@@ -1710,19 +1710,19 @@ void let_class::code(ostream &s, Environment &env) {
         }
     }
 
-    emit_push(ACC, s);
+    emit_push(WACC, s);
     env.push_stack_symbol(identifier);
 
     body->code(s, env);
 
-    emit_addiu(SP, SP, 8, s);
+    emit_addiu(SP, SP, 4, s);
     env.pop_stack_symbol();
 }
 
 void plus_class::code(ostream &s, Environment &env) {
     // eval e1 and put the result on the stack
     e1->code(s, env);
-    emit_push(ACC, s);
+    emit_push(WACC, s);
     env.push_stack_symbol(No_type);
 
     // eval e2 and copy the object; the new object is in $a0
@@ -1730,114 +1730,114 @@ void plus_class::code(ostream &s, Environment &env) {
     emit_jal("Object.copy", s);
 
     // $t1 = stack_pop(); $t1 points to e1 object
-    emit_addiu(SP, SP, 8, s);
-    emit_load(T1, 0, SP, s);
+    emit_addiu(SP, SP, 4, s);
+    emit_load(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
     // $t2 = $a0; $t2 points to e2 object
-    emit_move(T2, ACC, s);
+    emit_move(WT2, WACC, s);
 
     // $t1 = $t1.int
-    emit_fetch_int(T1, T1, s);
+    emit_fetch_int(WT1, T1, s);
     // $t2 = $t2.int
-    emit_fetch_int(T2, T2, s);
+    emit_fetch_int(WT2, T2, s);
 
     // $t3 = $t1 + t2
-    emit_add(T3, T1, T2, s);
+    emit_add(WT3, WT1, WT2, s);
     // $a0.int = $t3
-    emit_store(T3, 3, ACC, s);
+    emit_store(WT3, 3, ACC, s);
 }
 
 void sub_class::code(ostream &s, Environment &env) {
     e1->code(s, env);
-    emit_push(ACC, s);
+    emit_push(WACC, s);
     env.push_stack_symbol(No_type);
 
     e2->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_addiu(SP, SP, 8, s);
-    emit_load(T1, 0, SP, s);
+    emit_addiu(SP, SP, 4, s);
+    emit_load(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
-    emit_move(T2, ACC, s);
+    emit_move(WT2, WACC, s);
 
-    emit_fetch_int(T1, T1, s);
-    emit_fetch_int(T2, T2, s);
+    emit_fetch_int(WT1, T1, s);
+    emit_fetch_int(WT2, T2, s);
 
-    emit_sub(T3, T1, T2, s);
-    emit_store(T3, 3, ACC, s);
+    emit_sub(WT3, WT1, WT2, s);
+    emit_store(WT3, 3, ACC, s);
 }
 
 void mul_class::code(ostream &s, Environment &env) {
     e1->code(s, env);
-    emit_push(ACC, s);
+    emit_push(WACC, s);
     env.push_stack_symbol(No_type);
 
     e2->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_addiu(SP, SP, 8, s);
-    emit_load(T1, 0, SP, s);
+    emit_addiu(SP, SP, 4, s);
+    emit_load(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
-    emit_move(T2, ACC, s);
+    emit_move(WT2, WACC, s);
 
-    emit_fetch_int(T1, T1, s);
-    emit_fetch_int(T2, T2, s);
+    emit_fetch_int(WT1, T1, s);
+    emit_fetch_int(WT2, T2, s);
 
-    emit_mul(T3, T1, T2, s);
-    emit_store(T3, 3, ACC, s);
+    emit_mul(WT3, WT1, WT2, s);
+    emit_store(WT3, 3, ACC, s);
 }
 
 void divide_class::code(ostream &s, Environment &env) {
     e1->code(s, env);
-    emit_push(ACC, s);
+    emit_push(WACC, s);
     env.push_stack_symbol(No_type);
 
     e2->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_addiu(SP, SP, 8, s);
-    emit_load(T1, 0, SP, s);
+    emit_addiu(SP, SP, 4, s);
+    emit_load(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
-    emit_move(T2, ACC, s);
+    emit_move(WT2, WACC, s);
 
-    emit_fetch_int(T1, T1, s);
-    emit_fetch_int(T2, T2, s);
+    emit_fetch_int(WT1, T1, s);
+    emit_fetch_int(WT2, T2, s);
 
-    emit_div(T3, T1, T2, s);
-    emit_store(T3, 3, ACC, s);
+    emit_div(WT3, WT1, WT2, s);
+    emit_store(WT3, 3, ACC, s);
 }
 
 void neg_class::code(ostream &s, Environment &env) {
     e1->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_fetch_int(T1, ACC, s);
-    emit_neg(T1, T1, s);
-    emit_store(T1, 3, ACC, s);
+    emit_fetch_int(WT1, ACC, s);
+    emit_neg(WT1, WT1, s);
+    emit_store(WT1, 3, ACC, s);
 }
 
 void lt_class::code(ostream &s, Environment &env) {
     e1->code(s, env);
-    emit_push(ACC, s);
+    emit_push(WACC, s);
     env.push_stack_symbol(No_type);
 
     e2->code(s, env);
 
-    emit_addiu(SP, SP, 8, s);
-    emit_load(T1, 0, SP, s);
+    emit_addiu(SP, SP, 4, s);
+    emit_load(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
-    emit_move(T2, ACC, s);
+    emit_move(WT2, WACC, s);
 
-    emit_fetch_int(T1, T1, s);
-    emit_fetch_int(T2, T2, s);
+    emit_fetch_int(WT1, T1, s);
+    emit_fetch_int(WT2, T2, s);
 
     emit_load_bool(ACC, BoolConst(1), s);
-    emit_blt(T1, T2, label_num, s);
+    emit_blt(WT1, WT2, label_num, s);
 
     emit_load_bool(ACC, BoolConst(0), s);
     emit_label_def(label_num++, s);
@@ -1845,16 +1845,16 @@ void lt_class::code(ostream &s, Environment &env) {
 
 void eq_class::code(ostream &s, Environment &env) {
     e1->code(s, env);
-    emit_push(ACC, s);
+    emit_push(WACC, s);
     env.push_stack_symbol(No_type);
 
     e2->code(s, env);
 
-    emit_addiu(SP, SP, 8, s);
-    emit_load(T1, 0, SP, s);
+    emit_addiu(SP, SP, 4, s);
+    emit_load(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
-    emit_move(T2, ACC, s);
+    emit_move(WT2, WACC, s);
 
     if (e1->type == Int || e1->type == Str || e1->type == Bool) {
         emit_load_bool(ACC, BoolConst(1), s);
@@ -1864,29 +1864,29 @@ void eq_class::code(ostream &s, Environment &env) {
     }
 
     emit_load_bool(ACC, BoolConst(1), s);
-    emit_beq(T1, T2, label_num, s);
+    emit_beq(WT1, WT2, label_num, s);
     emit_load_bool(ACC, BoolConst(0), s);
     emit_label_def(label_num++, s);
 }
 
 void leq_class::code(ostream &s, Environment &env) {
     e1->code(s, env);
-    emit_push(ACC, s);
+    emit_push(WACC, s);
     env.push_stack_symbol(No_type);
 
     e2->code(s, env);
 
-    emit_addiu(SP, SP, 8, s);
-    emit_load(T1, 0, SP, s);
+    emit_addiu(SP, SP, 4, s);
+    emit_load(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
-    emit_move(T2, ACC, s);
+    emit_move(WT2, WACC, s);
 
-    emit_fetch_int(T1, T1, s);
-    emit_fetch_int(T2, T2, s);
+    emit_fetch_int(WT1, T1, s);
+    emit_fetch_int(WT2, T2, s);
 
     emit_load_bool(ACC, BoolConst(1), s);
-    emit_bleq(T1, T2, label_num, s);
+    emit_bleq(WT1, WT2, label_num, s);
 
     emit_load_bool(ACC, BoolConst(0), s);
     emit_label_def(label_num++, s);
@@ -1894,11 +1894,11 @@ void leq_class::code(ostream &s, Environment &env) {
 
 void comp_class::code(ostream &s, Environment &env) {
     e1->code(s, env);
-    emit_fetch_int(T1, ACC, s);
+    emit_fetch_int(WT1, ACC, s);
 
     emit_load_bool(ACC, BoolConst(1), s);
 
-    emit_beq(T1, ZERO, label_num, s);
+    emit_beq(WT1, WZERO, label_num, s);
     emit_load_bool(ACC, BoolConst(0), s);
 
     emit_label_def(label_num++, s);
@@ -1927,43 +1927,43 @@ void new__class::code(ostream &s, Environment &env) {
     emit_load_address(T1, CLASSOBJTAB, s);
 
     // $t2 = self.tag
-    emit_load(T2, 0, SELF, s);
+    emit_load(WT2, 0, SELF, s);
     // $t2 = $t2 * 8
-    emit_load_imm(T3, 8, s);
-    emit_mul(T2, T2, T3, s);
+    emit_load_imm(WT3, 8, s);
+    emit_mul(WT2, WT2, WT3, s);
     // $t1 += offset in the CLASSOBJTAB
-    emit_addu(T1, T1, T2, s);
+    emit_addu(WT1, WT1, WT2, s);
     // $t1 now points to SELF_TYPE_CLASS_protObj
 
     // push $t1 to the stack
-    emit_push(T1, s);
+    emit_push(WT1, s);
 
-    emit_load(ACC, 0, T1, s);
+    emit_load(WACC, 0, T1, s);
     emit_jal("Object.copy", s);
 
     // pop old pointer from the stack to $t1
-    emit_addiu(SP, SP, 8, s);
-    emit_load(T1, 0, SP, s);
+    emit_addiu(SP, SP, 4, s);
+    emit_load(WT1, 0, SP, s);
 
     // $t1 += 1 so it now points to SELF_TYPE_CLASS_init
-    emit_load(T1, 1, T1, s);
+    emit_load(WT1, 1, T1, s);
     emit_jalr(T1, s);
 }
 
 void isvoid_class::code(ostream &s, Environment &env) {
     e1->code(s, env);
-    emit_move(T1, ACC, s);
+    emit_move(WT1, WACC, s);
 
     emit_load_bool(ACC, BoolConst(1), s);
 
-    emit_beq(T1, ZERO, label_num, s);
+    emit_beq(WT1, WZERO, label_num, s);
     emit_load_bool(ACC, BoolConst(0), s);
 
     emit_label_def(label_num++, s);
 }
 
 void no_expr_class::code(ostream &s, Environment &env) {
-    emit_move(ACC, ZERO, s);
+    emit_move(WACC, WZERO, s);
 }
 
 void object_class::code(ostream &s, Environment &env) {
@@ -1971,24 +1971,24 @@ void object_class::code(ostream &s, Environment &env) {
 
     pos = env.get_let_var_pos_rev(name);
     if (pos != -1) {
-        emit_load(ACC, pos + 1, SP, s);
+        emit_load(WACC, pos + 1, SP, s);
         return;
     }
 
     pos = env.get_arg_pos(name);
     if (pos != -1) {
-        emit_load(ACC, 2 + env.get_mth_args_size() - pos, FP, s);
+        emit_load(WACC, 2 + env.get_mth_args_size() - pos, FP, s);
         return;
     }
 
     pos = env.get_cls_attr_pos(name);
     if (pos != -1) {
-        emit_load(ACC, DEFAULT_OBJFIELDS + pos, SELF, s);
+        emit_load(WACC, DEFAULT_OBJFIELDS + pos, SELF, s);
         return;
     }
 
     // name == self
-    emit_move(ACC, SELF, s);
+    emit_move(WACC, WSELF, s);
 }
 
 #else

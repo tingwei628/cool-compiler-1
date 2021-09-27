@@ -4,10 +4,14 @@
 ASSN = 2
 CLASS= cs143
 CLASSDIR= ../..
-# for Mac https://stackoverflow.com/a/2612449
-#LIB= -ll
-# for cross compile aarch64-unknown-linux-gnu
+ifeq ($(ARCH), aarch64)
+# for aarch64-unknown-linux-gnu in docker (arch: aarch64)
 LIB=
+else
+# for Mac (arch: mips)
+# https://stackoverflow.com/a/2612449
+LIB= -ll
+endif
 
 SRC= cool.flex test.cl README 
 CSRC= lextest.cc utilities.cc stringtab.cc handle_flags.cc
@@ -25,12 +29,16 @@ CPPINCLUDE= -I. -I${CLASSDIR}/include/PA${ASSN} -I${CLASSDIR}/src/PA${ASSN}
 
 
 FFLAGS= -d -ocool-lex.cc
-# for Mac
-#CC=g++
-#CFLAGS=-std=c++11 -g -Wall -Wno-unused -Wno-write-strings -Wno-deprecated-register ${CPPINCLUDE}
-# for cross compile aarch64-unknown-linux-gnu
+ifeq ($(ARCH), aarch64)
+# for aarch64-unknown-linux-gnu in docker (arch: aarch64)
 CC=$$CXX
 CFLAGS=-std=c++11 -g -Wall -Wno-unused -Wno-write-strings -Wno-deprecated-register -Wno-nonnull-compare ${CPPINCLUDE}
+else
+# for Mac (mips)
+CC=g++
+CFLAGS=-std=c++11 -g -Wall -Wno-unused -Wno-write-strings -Wno-deprecated-register ${CPPINCLUDE}
+endif
+
 FLEX=flex ${FFLAGS}
 DEPEND = ${CC} -MM ${CPPINCLUDE}
 
