@@ -320,7 +320,7 @@ heap_start:
 	.globl	Bool_init
 	.globl	Main.main
 Object_init:
-	add	sp, sp, #-24
+	add	sp, sp, #-12
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
@@ -330,88 +330,88 @@ Object_init:
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	sp, sp, #24
+	add	sp, sp, #12
 	ret	
 IO_init:
-	add	sp, sp, #-24
+	add	sp, sp, #-12
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
-	add	w29, wsp, #8
+	add	w29, wsp, #4
 	mov	w19, w0
 	bl Object_init
 	mov	w0, w19
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	sp, sp, #24
+	add	sp, sp, #12
 	ret	
 Int_init:
-	add	sp, sp, #-24
+	add	sp, sp, #-12
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
-	add	w29, wsp, #8
+	add	w29, wsp, #4
 	mov	w19, w0
 	bl Object_init
 	mov	w0, w19
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	sp, sp, #24
+	add	sp, sp, #12
 	ret	
 Bool_init:
-	add	sp, sp, #-24
+	add	sp, sp, #-12
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
-	add	w29, wsp, #8
+	add	w29, wsp, #4
 	mov	w19, w0
 	bl Object_init
 	mov	w0, w19
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	sp, sp, #24
+	add	sp, sp, #12
 	ret	
 String_init:
-	add	sp, sp, #-24
+	add	sp, sp, #-12
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
-	add	w29, wsp, #8
+	add	w29, wsp, #4
 	mov	w19, w0
 	bl Object_init
 	mov	w0, w19
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	sp, sp, #24
+	add	sp, sp, #12
 	ret	
 Main_init:
-	add	sp, sp, #-24
+	add	sp, sp, #-12
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
-	add	w29, wsp, #8
+	add	w29, wsp, #4
 	mov	w19, w0
 	bl IO_init
 	mov	w0, w19
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	sp, sp, #24
+	add	sp, sp, #12
 	ret	
 Main.main:
-	add	sp, sp, #-24
+	add	sp, sp, #-12
 	str	w29, [sp, #12]
 	str	w19, [sp, #8]
 	str	w30, [sp, #4]
-	add	w29, wsp, #8
+	add	w29, wsp, #4
 	mov	w19, w0
 	adr	x0, str_const1
 	str	w0, [sp, #0]
-	add	sp, sp, #-8
+	add	sp, sp, #-4
 	mov	w0, w19
 	cmp	w0, wzr
 	b.ne	 label0
@@ -425,7 +425,7 @@ label0:
 	ldr	w29, [sp, #12]
 	ldr	w19, [sp, #8]
 	ldr	w30, [sp, #4]
-	add	sp, sp, #24
+	add	sp, sp, #12
 	ret	
 
 # end of generated code

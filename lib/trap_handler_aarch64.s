@@ -405,7 +405,7 @@ _start:
 	
 	adr x0, Main_protObj // create the Main object
 	bl Object.copy // Call copy
-	add sp, sp, #-8
+	add sp, sp, #-4
 	str w0, [sp, #4] // save the Main object on the stack
 	mov w19, w0 // set $s0 to point to self
 	bl Main_init // initialize the Main object
@@ -413,7 +413,7 @@ _start:
 
 	.globl __main_return
 __main_return: # where we return after the call to Main.main
-	add sp, sp, #8 // restore the stack
+	add sp, sp, #4 // restore the stack
 	ldr w0, =_term_msg // show terminal message
 	bl puts
 	mov w0, #0
@@ -482,7 +482,7 @@ _eq_false:
 	.globl	_dispatch_abort
 _dispatch_abort:		 
     str w9, [sp, #0] // save line number
-	add sp, sp, #-8
+	add sp, sp, #-4
 	add w0, w0, #str_field // adjust to beginning of string
 	bl puts // print file name
 	ldr w0, =_colon_msg
@@ -498,7 +498,7 @@ _dispatch_abort:
 	.globl	_case_abort2
 _case_abort2:		 
     str w9, [sp, #0] // save line number
-	add sp, sp, #-8
+	add sp, sp, #-4
 	add w0, w0, #str_field // adjust to beginning of string
 	bl puts // print file name
 	ldr w0, =_colon_msg
@@ -621,18 +621,21 @@ Object.type_name:
 
 	.globl	IO.out_string
 IO.out_string:
-	add sp, sp, #8
+	add sp, sp, #-4
+	str w30, [sp, #0] // save return address
 	str w0, [sp, #4]
 	ldr w0, [sp, #8] // get arg
 	add w0, w0, #str_field
 	bl printf // print_str
 	ldr w0, [sp, #4] // return self
+	ldr w30, [sp, #0] // restore return address
 	add sp, sp, #8 // pop argument
 	ret
 
 	.globl	IO.out_int
 IO.out_int:
-	add sp, sp, #-8
+	add sp, sp, #-4
+	str w30, [sp, #0] // save return address
 	str w0, [sp, #4] // save self
 	ldr w0, [sp, #8] // get arg
 	ldr w0, [x0, #int_slot] // Fetch int
@@ -640,17 +643,18 @@ IO.out_int:
 	ldr w0, =_fmt_print_int
 	bl printf // print_int
 	ldr w0, [sp, #4] // return self
+	ldr w30, [sp, #0] // restore return address
 	add sp, sp, #8 // pop argument
 	ret
 
 	.globl	IO.in_int
 IO.in_int:
-	add sp, sp, #-8
+	add sp, sp, #-4
 	str w30, [sp, #4] // save return address
 	adr x0, Int_protObj
 	bl _quick_copy // Call copy
 	bl Int_init
-	add sp, sp, #-8
+	add sp, sp, #-4
 	str w0, [sp, #4] // save new object
 
     // reset array and num to read int
@@ -674,10 +678,10 @@ IO.in_int:
 	ldr w6, =_num
 	ldr w6, [x6] // return int from $v0
 	ldr w0, [sp, #4]
-	add sp, sp, #8
+	add sp, sp, #4
 	str w6, [x0, #int_slot] // store int read into obj
 	ldr w30, [sp, #4]
-	add sp, sp, #8
+	add sp, sp, #4
 	ret
 
 	.globl	IO.in_string
@@ -767,7 +771,7 @@ String.length:
 
 	.globl	String.concat
 String.concat:
-	add sp, sp, #-32
+	add sp, sp, #-16
 	str w30, [sp, #16] // save return address
 	str w0, [sp, #12] // save self arg.
 	str wzr, [sp, #8] // init GC area
@@ -825,17 +829,17 @@ _strcat_copy:
 	b.ne _strcat_copy
 	strb wzr, [x9, #0] // add '\0'
 	ldr w30, [sp, #16] // restore return address
-	add sp, sp, #40 // pop argument
+	add sp, sp, #20 // pop argument
 	ret // return
 _strcat_argempty:
 	ldr w0, [sp, #12] // load original self
 	ldr w30, [sp, #16] // restore return address
-	add sp, sp, #40 // pop argument
+	add sp, sp, #20 // pop argument
 	ret // return
 
 	.globl	String.substr
 String.substr:
-	add sp, sp, #-24 // frame
+	add sp, sp, #-12 // frame
 	str w30, [sp, #4] // save return
 	str w0, [sp, #12] // save self
 	str wzr, [sp, #8] // init GC area
@@ -902,7 +906,7 @@ _ss_end:
 	lsr w12, w12, #2 // div by 4 (srl - shift right logical)
 	str w12, [x0, #obj_size]	
 	ldr w30, [sp, #4]
-	add sp, sp, #40 // pop arguments
+	add sp, sp, #20 // pop arguments
 	ret
 _ss_abort1:
 	ldr	w0, =_sabort_msg1
@@ -924,11 +928,13 @@ _ss_abort:
 
 	.globl _MemMgr_Init
 _MemMgr_Init:
-	str w30, [sp, #-8]! // save return address
+	add sp, sp, #-4 // // save return address
+	str w30, [sp, #4]
 	adr x12, _MemMgr_INITIALIZER // pointer to initialization
 	ldr w12, [x12, #0]
 	blr x12 // initialize
-	ldr w30, [sp], #8 // restore return address
+	ldr w30, [sp, #4] // // restore return address
+	add sp, sp, #4
 	ret // return
 
 	.globl _MemMgr_Alloc
@@ -937,7 +943,7 @@ _MemMgr_Alloc:
 	cmp w27, w26
 	b.lt _MemMgr_Alloc_end // check allocation
 	sub w27, w27, w0 // restore $gp
-	add sp, sp, #-8
+	add sp, sp, #-4
 	str w30, [sp, #4] // save return address
 	mov w1, w0 // size
 	add w0, wsp, #4 // end of stack to collect
@@ -945,7 +951,7 @@ _MemMgr_Alloc:
 	ldr w12, [x12, #0]
 	blr x12 // garbage collect
     ldr w30, [sp, #4]
-	add sp, sp, #8
+	add sp, sp, #4
 	mov w0, w1 // put size into $a0
 	add w27, w27, w0 // allocate storage
 _MemMgr_Alloc_end:
@@ -957,7 +963,7 @@ _MemMgr_QAlloc:
 	add w12, w27, w0
 	cmp w12, w26
 	b.lt _MemMgr_QAlloc_end // check allocation
-	add sp, sp, #-8 // attempt to allocate storage
+	add sp, sp, #-4 // attempt to allocate storage
 	str w30, [sp, #4] // save return address
 	mov w1, w0 // size
 	add w0, wsp, #4 // end of stack to collect
@@ -965,7 +971,7 @@ _MemMgr_QAlloc:
 	ldr w12, [x12, #0]
 	blr x12 // garbage collect
 	ldr w30, [sp, #4] // restore return address
-	add sp, sp, #8
+	add sp, sp, #4
 	mov w0, w1 // put size into $a0
 _MemMgr_QAlloc_end:
 	ret // return
@@ -978,7 +984,7 @@ _MemMgr_Test:
 	b.eq _MemMgr_Test_end
 
 // Allocate 0 bytes
-	add sp, sp, #-8 // Save return address
+	add sp, sp, #-4 // Save return address
 	str w30, [sp, #4]
 	mov w1, #0 // size = 0
 	add w0, wsp, #4 // end of stack to collect
@@ -986,7 +992,7 @@ _MemMgr_Test:
 	ldr w12, [x12, #0]
 	blr x12 // garbage collect
 	ldr w30, [sp, #4] // restore return address
-	add sp, sp, #8
+	add sp, sp, #4
 
 _MemMgr_Test_end:
 	ret
@@ -1080,7 +1086,7 @@ _gc_abort:
 
 	.globl _GenGC_Collect
 _GenGC_Collect:
-	add sp, sp, #24
+	add sp, sp, #-12
 	str w30, [sp, #12] // save return address
 	str w0, [sp, #8] // save stack end
 	str w1, [sp, #4] // save size
@@ -1222,7 +1228,7 @@ _GenGC_Clear_loop:
 	
 	str w1, [sp, #4] // restore size
 	str w30, [sp, #12] // restore return address
- 	add sp, sp, #24
+ 	add sp, sp, #12
 	ret // return
 
 	.globl _GenGC_ChkCopy
@@ -1268,7 +1274,7 @@ _GenGC_ChkCopy_forward:
 
  	.globl _GenGC_MinorC
 _GenGC_MinorC:
-	add sp, sp, #-40
+	add sp, sp, #-20
  	str w30, [sp, #20] // save return address
 	adr x12, heap_start
 	ldr w1, [x12, #GenGC_HDRL2] // set lower bound to work area
@@ -1484,7 +1490,7 @@ _GenGC_MinorC_heapend:
 	ldr w0, [x12, #GenGC_HDRL1]
 	sub w0, w27, w0 // find size after collection
 	ldr w30, [sp, #20] // restore return address
-	add sp, sp, #40
+	add sp, sp, #20
 	ret // return
 _GenGC_MinorC_error:
  	ldr w0, =_GenGC_MINORERROR // show error message
@@ -1561,7 +1567,7 @@ _GenGC_OfsCopy_forward:
 
  	.globl _GenGC_MajorC
 _GenGC_MajorC:
-	add sp, sp, #-40
+	add sp, sp, #-20
 	str w30, [sp, #20] // save return address
 	adr x12, heap_start
  	ldr w26, [x12, #GenGC_HDRL4] // limit pointer for collection
@@ -1771,7 +1777,7 @@ _GenGC_MajorC_bcpyend:
 	sub w27, w27, w9 // find end of old area
 	str w27, [x12, #GenGC_HDRL1] // save end of old area
 	ldr w30, [sp, #20] // restore return address
-	add sp, sp, #40
+	add sp, sp, #20
 	ret // return
 _GenGC_MajorC_error:
 	ldr w0, =_GenGC_MAJORERROR
@@ -1787,19 +1793,19 @@ _GenGC_MajorC_error:
 
 	.globl _NoGC_Init
 _NoGC_Init:
-	add sp, sp, #-8
+	add sp, sp, #-4
 	str w30, [sp, #4]
 	adr x27, heap_start // set $gp to the start of the heap
 	mov w0, #0 // get heap end
     bl sbrk  // sbrk
 	mov w26, w0 // set limit pointer
 	ldr w30, [sp, #4]
-	add sp, sp, #8
+	add sp, sp, #4
 	ret
 
 	.globl _NoGC_Collect
 _NoGC_Collect:
-    add sp, sp, #-8
+    add sp, sp, #-4
     str w30, [sp, #4]
 	ldr w0, =_NoGC_COLLECT // show collection message
 	bl puts
@@ -1817,6 +1823,6 @@ _NoGC_Collect_loop:
 	b _NoGC_Collect_loop // loop
 _NoGC_Collect_ok:
 	ldr w30, [sp, #4]
-	add sp, sp, #8
+	add sp, sp, #4
 	ret // return
 
