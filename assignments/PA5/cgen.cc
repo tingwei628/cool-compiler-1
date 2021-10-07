@@ -175,10 +175,20 @@ static void emit_load(char *dest_reg, int offset, char *source_reg, ostream& s)
     s << LW << dest_reg << ", " << "[" << source_reg << ", " << "#" << offset * WORD_SIZE << "]"
       << endl;
 }
+static void emit_load_aarch64(char *dest_reg, int offset, char *source_reg, ostream& s)
+{
+    s << LW << dest_reg << ", " << "[" << source_reg << ", " << "#" << offset * WORD_SIZE * 2 << "]"
+      << endl;
+}
 
 static void emit_store(char *source_reg, int offset, char *dest_reg, ostream& s)
 {
     s << SW << source_reg << ", " << "[" << dest_reg << ", " << "#" << offset * WORD_SIZE << "]"
+      << endl;
+}
+static void emit_store_aarch64(char *source_reg, int offset, char *dest_reg, ostream& s)
+{
+    s << SW << source_reg << ", " << "[" << dest_reg << ", " << "#" << offset * WORD_SIZE * 2 << "]"
       << endl;
 }
 
@@ -225,6 +235,9 @@ static void emit_addu(char *dest, char *src1, char *src2, ostream& s)
 { s << ADDU << dest << ", " << src1 << ", " << src2 << endl; }
 
 static void emit_addiu(char *dest, char *src1, int imm, ostream& s)
+{ s << ADDIU << dest << ", " << src1 << ", " << "#" << imm << endl; }
+
+static void emit_addiu_aarch64(char *dest, char *src1, int imm, ostream& s)
 { s << ADDIU << dest << ", " << src1 << ", " << "#" << imm << endl; }
 
 static void emit_div(char *dest, char *src1, char *src2, ostream& s)
@@ -339,8 +352,8 @@ static void emit_branch(int l, ostream& s)
 //
 static void emit_push(char *reg, ostream& str)
 {
-    emit_store(reg,0,SP,str);
-    emit_addiu(SP,SP,-4,str);
+    emit_store_aarch64(reg,0,SP,str);
+    emit_addiu_aarch64(SP,SP,-8,str);
 }
 
 //
@@ -362,11 +375,11 @@ static void emit_store_int(char *source, char *dest, ostream& s)
 static void emit_test_collector(ostream &s)
 {
     emit_push(WACC, s);
-    emit_move(WACC, WSP, s); // stack end
+    emit_move(ACC, SP, s); // stack end
     emit_move(WA1, WZERO, s); // allocate nothing
     s << JAL << gc_collect_names[cgen_Memmgr] << endl;
-    emit_addiu(SP,SP,4,s);
-    emit_load(WACC,0,SP,s);
+    emit_addiu_aarch64(SP,SP,8,s);
+    emit_load_aarch64(WACC,0,SP,s);
 }
 
 static void emit_gc_check(char *source, ostream &s)
@@ -1206,11 +1219,11 @@ void CgenClassTable::code_initializers()
 
         str << cls->get_name() << CLASSINIT_SUFFIX << LABEL;
 
-        emit_addiu(SP, SP, -12, str);
-        emit_store(WFP, 3, SP, str);
-        emit_store(WSELF, 2, SP, str);
-        emit_store(WRA, 1, SP, str);
-        emit_addiu(WFP, WSP, 4, str);
+        emit_addiu_aarch64(SP, SP, -24, str);
+        emit_store_aarch64(FP, 3, SP, str);
+        emit_store_aarch64(WSELF, 2, SP, str);
+        emit_store_aarch64(WRA, 1, SP, str);
+        emit_addiu_aarch64(FP, SP, 8, str);
         emit_move(WSELF, WACC, str);
 
         if (cls->get_name() != Object) {
@@ -1235,10 +1248,10 @@ void CgenClassTable::code_initializers()
         }
 
         emit_move(WACC, WSELF, str);
-        emit_load(WFP, 3, SP, str);
-        emit_load(WSELF, 2, SP, str);
-        emit_load(WRA, 1, SP, str);
-        emit_addiu(SP, SP, 12, str);
+        emit_load_aarch64(FP, 3, SP, str);
+        emit_load_aarch64(WSELF, 2, SP, str);
+        emit_load_aarch64(WRA, 1, SP, str);
+        emit_addiu_aarch64(SP, SP, 24, str);
 
         emit_return(str);
     }
@@ -1395,13 +1408,13 @@ void method_class::code(ostream &s, Environment &env)
     s << LABEL;
 
     // make space in the stack
-    emit_addiu(SP, SP, -(DEFAULT_OBJFIELDS * 4), s);
+    emit_addiu_aarch64(SP, SP, -(DEFAULT_OBJFIELDS * 4 * 2), s);
     // save old $fp, self and $ra values
-    emit_store(WFP, 3, SP, s);
-    emit_store(WSELF, 2, SP, s);
-    emit_store(WRA, 1, SP, s);
+    emit_store_aarch64(FP, 3, SP, s);
+    emit_store_aarch64(WSELF, 2, SP, s);
+    emit_store_aarch64(WRA, 1, SP, s);
     // set fp to point to old $ra
-    emit_addiu(WFP, WSP, 4, s);
+    emit_addiu_aarch64(FP, SP, 8, s);
     // move acc to self
     emit_move(WSELF, WACC, s);
 
@@ -1412,12 +1425,12 @@ void method_class::code(ostream &s, Environment &env)
     expr->code(s, env);
 
     // restore $fp, self and $ra
-    emit_load(WFP, 3, SP, s);
-    emit_load(WSELF, 2, SP, s);
-    emit_load(WRA, 1, SP, s);
+    emit_load_aarch64(FP, 3, SP, s);
+    emit_load_aarch64(WSELF, 2, SP, s);
+    emit_load_aarch64(WRA, 1, SP, s);
 
     // destroy the stack frame
-    emit_addiu(SP, SP, (DEFAULT_OBJFIELDS + env.get_mth_args_size()) * 4, s);
+    emit_addiu_aarch64(SP, SP, (DEFAULT_OBJFIELDS + env.get_mth_args_size()) * 4 * 2, s);
     env.clear_mth_args();
 
     s << RET << "\n";
@@ -1430,10 +1443,10 @@ void assign_class::code(ostream &s, Environment &env) {
     pos = env.get_let_var_pos_rev(name);
     if (pos != -1) {
         offset = pos + 1;
-        emit_store(WACC, offset, SP, s);
+        emit_store_aarch64(WACC, offset, SP, s);
 
         if (cgen_Memmgr == GC_GENGC) {
-            emit_addiu(WA1, WSP, 4 * offset, s);
+            emit_addiu_aarch64(WA1, SP, 4 * 2 * offset, s);
             emit_gc_assign(s);
         }
         return;
@@ -1442,10 +1455,10 @@ void assign_class::code(ostream &s, Environment &env) {
     pos = env.get_arg_pos(name);
     if (pos != -1) {
         offset = 2 + env.get_mth_args_size() - pos;
-        emit_store(WACC, offset, FP, s);
+        emit_store_aarch64(WACC, offset, FP, s);
 
         if (cgen_Memmgr == GC_GENGC) {
-            emit_addiu(WA1, WFP, 4 * offset, s);
+            emit_addiu_aarch64(WA1, FP, 4 * 2 * offset, s);
             emit_gc_assign(s);
         }
         return;
@@ -1688,7 +1701,7 @@ void typcase_class::code(ostream &s, Environment &env) {
     emit_label_def(label_end, s);
 
     // pop expr from the stack
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
 }
 
 void block_class::code(ostream &s, Environment &env) {
@@ -1715,7 +1728,7 @@ void let_class::code(ostream &s, Environment &env) {
 
     body->code(s, env);
 
-    emit_addiu(SP, SP, 4, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
     env.pop_stack_symbol();
 }
 
@@ -1730,8 +1743,8 @@ void plus_class::code(ostream &s, Environment &env) {
     emit_jal("Object.copy", s);
 
     // $t1 = stack_pop(); $t1 points to e1 object
-    emit_addiu(SP, SP, 4, s);
-    emit_load(WT1, 0, SP, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
+    emit_load_aarch64(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
     // $t2 = $a0; $t2 points to e2 object
@@ -1756,8 +1769,8 @@ void sub_class::code(ostream &s, Environment &env) {
     e2->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_addiu(SP, SP, 4, s);
-    emit_load(WT1, 0, SP, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
+    emit_load_aarch64(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
     emit_move(WT2, WACC, s);
@@ -1777,8 +1790,8 @@ void mul_class::code(ostream &s, Environment &env) {
     e2->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_addiu(SP, SP, 4, s);
-    emit_load(WT1, 0, SP, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
+    emit_load_aarch64(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
     emit_move(WT2, WACC, s);
@@ -1798,8 +1811,8 @@ void divide_class::code(ostream &s, Environment &env) {
     e2->code(s, env);
     emit_jal("Object.copy", s);
 
-    emit_addiu(SP, SP, 4, s);
-    emit_load(WT1, 0, SP, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
+    emit_load_aarch64(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
     emit_move(WT2, WACC, s);
@@ -1827,8 +1840,8 @@ void lt_class::code(ostream &s, Environment &env) {
 
     e2->code(s, env);
 
-    emit_addiu(SP, SP, 4, s);
-    emit_load(WT1, 0, SP, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
+    emit_load_aarch64(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
     emit_move(WT2, WACC, s);
@@ -1850,8 +1863,8 @@ void eq_class::code(ostream &s, Environment &env) {
 
     e2->code(s, env);
 
-    emit_addiu(SP, SP, 4, s);
-    emit_load(WT1, 0, SP, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
+    emit_load_aarch64(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
     emit_move(WT2, WACC, s);
@@ -1876,8 +1889,8 @@ void leq_class::code(ostream &s, Environment &env) {
 
     e2->code(s, env);
 
-    emit_addiu(SP, SP, 4, s);
-    emit_load(WT1, 0, SP, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
+    emit_load_aarch64(WT1, 0, SP, s);
     env.pop_stack_symbol();
 
     emit_move(WT2, WACC, s);
@@ -1942,8 +1955,8 @@ void new__class::code(ostream &s, Environment &env) {
     emit_jal("Object.copy", s);
 
     // pop old pointer from the stack to $t1
-    emit_addiu(SP, SP, 4, s);
-    emit_load(WT1, 0, SP, s);
+    emit_addiu_aarch64(SP, SP, 8, s);
+    emit_load_aarch64(WT1, 0, SP, s);
 
     // $t1 += 1 so it now points to SELF_TYPE_CLASS_init
     emit_load(WT1, 1, T1, s);
@@ -1971,13 +1984,13 @@ void object_class::code(ostream &s, Environment &env) {
 
     pos = env.get_let_var_pos_rev(name);
     if (pos != -1) {
-        emit_load(WACC, pos + 1, SP, s);
+        emit_load_aarch64(WACC, pos + 1, SP, s);
         return;
     }
 
     pos = env.get_arg_pos(name);
     if (pos != -1) {
-        emit_load(WACC, 2 + env.get_mth_args_size() - pos, FP, s);
+        emit_load_aarch64(WACC, 2 + env.get_mth_args_size() - pos, FP, s);
         return;
     }
 

@@ -1,0 +1,43 @@
+#!/bin/bash
+#cool compiler compile into aarch64 asm
+# ./assignments/PA2/lexer $* | ./assignments/PA3/parser $* | ./assignments/PA4/semant $* | ./assignments/PA5/cgen $*
+Help()
+{
+    # Display Help
+   echo "Required: [filename].cl"
+   echo "options: --[arch|help]"
+   echo "--arch         Assign this arch to compile. (default: mips)"
+   echo "               e.g.  --arch=aarch64, --arch=mips"
+   echo "--help|-h      Print this Help."
+   echo
+}
+Arch="mips" # default
+ARGUMENTS=()
+# ref: https://stackoverflow.com/a/31443098/5321961
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+   #-n) name="$2"; shift 2;;
+   #-p) pidfile="$2"; shift 2;;
+   #-l) logfile="$2"; shift 2;;
+   -h|--help) Help; exit;;
+   --arch=*) Arch="${1#--*=}"; echo ${Arch}; shift 1;; # remove --arch= and get value
+   #--name=*) name="${1#*=}"; shift 1;;
+   #--pidfile=*) pidfile="${1#*=}"; shift 1;;
+   #-logfile=*) logfile="${1#*=}"; shift 1;;
+   #--name|--pidfile|--logfile) echo "$1 requires an argument" >&2; exit 1;;    
+   -*|--*) echo "unknown option: $1" >&2; exit 1;;
+   *) ARGUMENTS+=("$1"); shift 1;;
+  esac
+done
+
+set -- "${ARGUMENTS[*]}" # restore arguments $*
+# echo $*
+
+if [ $Arch == "aarch64" ]
+then
+   # echo "hello $Arch! aarch64"
+   ./assignments/PA2/lexer_aarch64 $* | ./assignments/PA3/parser_aarch64 $* | ./assignments/PA4/semant_aarch64 $* | ./assignments/PA5/cgen_aarch64 $*
+else
+   # echo "hello $Arch! mips"
+   ./assignments/PA2/lexer_mips $* | ./assignments/PA3/parser_mips $* | ./assignments/PA4/semant_mips $* | ./assignments/PA5/cgen_mips $*
+fi

@@ -206,6 +206,14 @@
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
 // PURPOSE.
 //
+	.bss
+	.balign 4
+
+_num: .word 0
+_fmt_int_array: .space array_maxsize_read_int
+_fmt_int_size=.-_fmt_int_array
+_fmt_str_array: .space str_maxsize
+_fmt_str_size=.- _fmt_str_array
 
 	.data
 // system call number
@@ -270,6 +278,7 @@ $a0 -> x0
 $a1 -> x1
 $a2 -> x2
 
+    -> x5 (backup x1)
 $v0 -> x6
 $v1 -> x7
 
@@ -277,14 +286,16 @@ $v1 -> x7
 // $s0 ~ $s6 $t8 $t9 $fp $ra
 // x19 ~ x25 x14 x15 x29 x30
 */
-//.string directive is an alias for .asciz
-_num: .word 0
-_fmt_int_array: .space array_maxsize_read_int
-_fmt_int_size=.-_fmt_int_array
-_fmt_read_int: .string "%d"
+
+// Stack overflow handler message:
+// _stack_overflow_msg: .asciiz " Stack overflow detected, COOL program aborted\n"
+	//.align 2
+	.balign 4
+
+	.text
+
+_fmt_read_int: .asciz "%d"
 _fmt_print_int: .asciz "%d" // printf int format
-_fmt_str_array: .space str_maxsize
-_fmt_str_size=.- _fmt_str_array
 _abort_msg:	.asciz "Abort called from class "
 _colon_msg:	.asciz ":"
 _dispatch_msg:  .asciz ": Dispatch to void.\n"
@@ -299,7 +310,6 @@ _sabort_msg4:	.asciz	"Length to substr is negative\n"
 _sabort_msg:	.asciz "Execution aborted.\n"
 _objcopy_msg:	.asciz "Object.copy: Invalid object size.\n"
 _gc_abort_msg:	.asciz "GC bug!\n"
-
 // Exception Handler Message:
 _uncaught_msg1: .asciz "\nUncaught Exception of Class "
 _uncaught_msg2: .asciz "\nthrown. COOL program aborted.\n"
@@ -312,17 +322,9 @@ _GenGC_MINORERROR:	.asciz "GenGC: Error during minor garbage collection.\n"
 _GenGC_MAJORERROR:	.asciz "GenGC: Error during major garbage collection.\n"
 _GenGC_Init_test_msg:   .asciz "GenGC initialized in test mode.\n"
 _GenGC_Init_msg:        .asciz "GenGC initialized.\n"
-
-// Stack overflow handler message:
-// _stack_overflow_msg: .asciiz " Stack overflow detected, COOL program aborted\n"
-
 // Messages for the NoGC garabge collector
 _NoGC_COLLECT:		.asciz "Increasing heap...\n"
 
-	//.align 2
-	.balign 4
-
-	.text
 	.globl __sig_handler2
 __sig_handler2:
     stp x29, x30, [sp, #-32]!
@@ -400,20 +402,20 @@ _start:
 	bl sbrk //sbrk
 	mov w2, w0 // sbrk return address save to x2
 	mov	w1, #MemMgr_REG_MASK
-	mov w0, wsp // initialize the garbage collector	
+	mov x0, sp // initialize the garbage collector	
 	bl	_MemMgr_Init		// sets $gp and $s7 (limit)
 	
 	adr x0, Main_protObj // create the Main object
 	bl Object.copy // Call copy
-	add sp, sp, #-4
-	str w0, [sp, #4] // save the Main object on the stack
+	add sp, sp, #-8
+	str w0, [sp, #8] // save the Main object on the stack
 	mov w19, w0 // set $s0 to point to self
 	bl Main_init // initialize the Main object
 	bl Main.main // Invoke main method
 
 	.globl __main_return
 __main_return: # where we return after the call to Main.main
-	add sp, sp, #4 // restore the stack
+	add sp, sp, #8 // restore the stack
 	ldr w0, =_term_msg // show terminal message
 	bl puts
 	mov w0, #0
@@ -482,13 +484,13 @@ _eq_false:
 	.globl	_dispatch_abort
 _dispatch_abort:		 
     str w9, [sp, #0] // save line number
-	add sp, sp, #-4
+	add sp, sp, #-8
 	add w0, w0, #str_field // adjust to beginning of string
 	bl puts // print file name
 	ldr w0, =_colon_msg
 	bl puts // print ":"
 	ldr w0, =_fmt_print_int
-	ldr w1, [sp, #4]
+	ldr w1, [sp, #8]
 	bl printf // print line number
 	ldr w0, =_dispatch_msg
 	bl puts // print dispatch-to-void message
@@ -498,13 +500,13 @@ _dispatch_abort:
 	.globl	_case_abort2
 _case_abort2:		 
     str w9, [sp, #0] // save line number
-	add sp, sp, #-4
+	add sp, sp, #-8
 	add w0, w0, #str_field // adjust to beginning of string
 	bl puts // print file name
 	ldr w0, =_colon_msg
 	bl puts // print ":"
 	ldr w0, =_fmt_print_int
-	ldr w1, [sp, #4]
+	ldr w1, [sp, #8]
 	bl printf // print line number
 	ldr w0, =_cabort_msg2
 	bl puts // print case-on-void message
@@ -528,12 +530,12 @@ _case_abort:			// $a0 contains case expression obj.
 
 	.globl	Object.copy
 Object.copy:
-	add sp, sp, #-8 //create stack frame
-	str w30, [sp, #8]
-	str w0, [sp, #4]
+	add sp, sp, #-16 //create stack frame
+	str w30, [sp, #16]
+	str w0, [sp, #8]
 	
 	bl _MemMgr_Test // test GC area
-	ldr w0, [sp, #4] // get object size
+	ldr w0, [sp, #8] // get object size
 	ldr w0, [x0, #obj_size]
 	cmp w0, wzr
 	b.le _objcopy_error // check for invalid size
@@ -541,9 +543,9 @@ Object.copy:
 	add w0, w0, #4 // account for eyecatcher
 	bl _MemMgr_Alloc // allocate storage
 	add w1, w0, #4 // pointer to new object
-	ldr w0, [sp, #4] // the self object
-	ldr w30, [sp, #8] // restore return address
-	add sp, sp, #8 // remove frame
+	ldr w0, [sp, #8] // the self object
+	ldr w30, [sp, #16] // restore return address
+	add sp, sp, #16 // remove frame
 	ldr w12, [x0, #obj_size] // get size of object
 	lsl w12, w12, #2 // convert words to bytes
 	b _objcopy_allocated // get on with the copy
@@ -563,15 +565,15 @@ _quick_copy:
 	b.lt _objcopy_allocated // check allocation
 _objcopy_allocate:
 	sub w27, w1, #4 // restore the original $gp
-	add sp, sp, #-8 // frame size
-	str w30, [sp, #8] // save return address
-	str w0, [sp, #4] // save self
+	add sp, sp, #-16 // frame size
+	str w30, [sp, #16] // save return address
+	str w0, [sp, #8] // save self
 	mov w0, w9 // put bytes to allocate in $a0
 	bl _MemMgr_Alloc // allocate storage
 	add w1, w0, #4 // pointer to new object
-	ldr w0, [sp, #4] // the self object
-	ldr w30, [sp, #8] // restore return address
-	add sp, sp, #8 // remove frame
+	ldr w0, [sp, #8] // the self object
+	ldr w30, [sp, #16] // restore return address
+	add sp, sp, #16 // remove frame
 	ldr w12, [x0, #obj_size] // get size of object
 	lsl w12, w12, #2 // convert words to bytes
 _objcopy_allocated:
@@ -621,41 +623,41 @@ Object.type_name:
 
 	.globl	IO.out_string
 IO.out_string:
-	add sp, sp, #-4
+	add sp, sp, #-8
 	str w30, [sp, #0] // save return address
-	str w0, [sp, #4]
-	ldr w0, [sp, #8] // get arg
+	str w0, [sp, #8]
+	ldr w0, [sp, #16] // get arg
 	add w0, w0, #str_field
 	bl printf // print_str
-	ldr w0, [sp, #4] // return self
+	ldr w0, [sp, #8] // return self
 	ldr w30, [sp, #0] // restore return address
-	add sp, sp, #8 // pop argument
+	add sp, sp, #16 // pop argument
 	ret
 
 	.globl	IO.out_int
 IO.out_int:
-	add sp, sp, #-4
+	add sp, sp, #-8
 	str w30, [sp, #0] // save return address
-	str w0, [sp, #4] // save self
-	ldr w0, [sp, #8] // get arg
+	str w0, [sp, #8] // save self
+	ldr w0, [sp, #16] // get arg
 	ldr w0, [x0, #int_slot] // Fetch int
 	mov w1, w0
 	ldr w0, =_fmt_print_int
 	bl printf // print_int
-	ldr w0, [sp, #4] // return self
+	ldr w0, [sp, #8] // return self
 	ldr w30, [sp, #0] // restore return address
-	add sp, sp, #8 // pop argument
+	add sp, sp, #16 // pop argument
 	ret
 
 	.globl	IO.in_int
 IO.in_int:
-	add sp, sp, #-4
-	str w30, [sp, #4] // save return address
+	add sp, sp, #-8
+	str w30, [sp, #8] // save return address
 	adr x0, Int_protObj
 	bl _quick_copy // Call copy
 	bl Int_init
-	add sp, sp, #-4
-	str w0, [sp, #4] // save new object
+	add sp, sp, #-8
+	str w0, [sp, #8] // save new object
 
     // reset array and num to read int
     // use memset(arr, 0 ,sizeof(arr)) to clear array
@@ -677,32 +679,32 @@ IO.in_int:
 	bl sscanf
 	ldr w6, =_num
 	ldr w6, [x6] // return int from $v0
-	ldr w0, [sp, #4]
-	add sp, sp, #4
+	ldr w0, [sp, #8]
+	add sp, sp, #8
 	str w6, [x0, #int_slot] // store int read into obj
-	ldr w30, [sp, #4]
-	add sp, sp, #4
+	ldr w30, [sp, #8]
+	add sp, sp, #8
 	ret
 
 	.globl	IO.in_string
 IO.in_string:
-	add sp, sp, #-8
-	str w30, [sp, #8] // save return address
-	str wzr, [sp, #4] // init GC area
+	add sp, sp, #-16
+	str w30, [sp, #16] // save return address
+	str wzr, [sp, #8] // init GC area
 	bl _MemMgr_Test // test GC area
 	adr x0, Int_protObj // Int object for string size
 	bl _quick_copy
 	bl Int_init
-	str w0, [sp, #4] // save it
+	str w0, [sp, #8] // save it
 	mov w0, #str_field // size of string obj. header
 	add w0, w0, #str_maxsize // max size of string data
 	bl _MemMgr_QAlloc // make sure enough room
 	adr x0, String_protObj // make string object
 	bl _quick_copy
 	bl String_init
-	ldr w12, [sp, #4] // get size object
+	ldr w12, [sp, #8] // get size object
 	str w12, [x0, #str_size] // store size object in string
-	str w0, [sp, #4] // save string object
+	str w0, [sp, #8] // save string object
 	add w27, w27, #-4 // overwrite last word
 _instr_ok:
    
@@ -748,7 +750,7 @@ _instr_noteof:
 	strb wzr, [x27, #-2] // Set end of string where '\n' was
 	add w27, w27, #-1 // adjust for '\n'
 _instr_nonl:
- 	ldr w0, [sp, #4] // get pointer to new str obj
+ 	ldr w0, [sp, #8] // get pointer to new str obj
 	ldr w9, [x0, #str_size] // get pointer to int obj
 	sub w0, w27, w0
 	sub w12, w12, #str_field // calc actual str size
@@ -760,8 +762,8 @@ _instr_nonl:
 	sub w12, w27, w0 // calc length
 	lsr w12, w12, #2 // divide by 4
 	str w12, [x0, #obj_size] // set size field of obj
-	ldr w30, [sp, #8] // restore return address
-	add sp, sp, #8
+	ldr w30, [sp, #16] // restore return address
+	add sp, sp, #16
 	ret // return
 
 	.globl	String.length
@@ -771,22 +773,22 @@ String.length:
 
 	.globl	String.concat
 String.concat:
-	add sp, sp, #-16
-	str w30, [sp, #16] // save return address
-	str w0, [sp, #12] // save self arg.
+	add sp, sp, #-32
+	str w30, [sp, #32] // save return address
+	str w0, [sp, #24] // save self arg.
+	str wzr, [sp, #16] // init GC area
 	str wzr, [sp, #8] // init GC area
-	str wzr, [sp, #4] // init GC area
 	bl _MemMgr_Test // test GC area
-	ldr w0, [sp, #12]
+	ldr w0, [sp, #24]
 	ldr w0, [x0, #str_size]
 	bl _quick_copy // Call copy
-	str w0, [sp, #8] // save new size object
-	ldr w9, [sp, #20] // load arg object
+	str w0, [sp, #16] // save new size object
+	ldr w9, [sp, #40] // load arg object
 	ldr w9, [x9, #str_size] // get size object
 	ldr w9, [x9, #int_slot] // arg string size
 	cmp w9, wzr
 	b.le _strcat_argempty // nothing to add
-	ldr w12, [sp, #12] // load self object
+	ldr w12, [sp, #24] // load self object
 	ldr w12, [x12, #str_size] // get size object
 	ldr w12, [x12, #int_slot] // self string size
 	add w12, w12, w9 // new size
@@ -796,26 +798,26 @@ String.concat:
 	ldr w10, =0xfffffffc // 0xfffffffc (= 1111 1111 1111 1111 1111 1111 1111 1100)
 	and w0, w0, w10 // align on word boundary (& 0xfffffffc which can be divided by 4)
 	add w0, w0, #1 // make size odd for GC <-|
-	str w0, [sp, #4] // save size in bytes     |
+	str w0, [sp, #8] // save size in bytes     |
 	add w0, w0, #3 //  save size in bytes     |
 	bl _MemMgr_QAlloc // check memory
-	ldr w0, [sp, #12] // copy self
+	ldr w0, [sp, #24] // copy self
 	bl _quick_copy // Call copy
-	ldr w12, [sp, #8] // get the Int object
+	ldr w12, [sp, #16] // get the Int object
 	str w12, [x0, #str_size] // store it in the str obj.
 	sub w9, w27, w0 // bytes allocated by _quick_copy
-	ldr w12, [sp, #4] // get size in bytes (no eyecatcher)
+	ldr w12, [sp, #8] // get size in bytes (no eyecatcher)
 	sub w12, w12, #1 // Remove extra 1 (was for GC)
 	sub w9, w12, w9 // more memory needed
 	add w27, w27, w9 // allocate rest
 	lsr w12, w12, #2 // convert to words
 	str w12, [x0, #obj_size] // save new object size
-	ldr w12, [sp, #12] // get original self object
+	ldr w12, [sp, #24] // get original self object
 	ldr w12, [x12, #str_size] // get size object
 	ldr w12, [x12, #int_slot] // self string size
 	add w9, w0, #str_field // points to start of string data
 	add w9, w9, w12 // points to end: '\0'
-	ldr w12, [sp, #20] // load arg object
+	ldr w12, [sp, #40] // load arg object
 	add w10, w12, #str_field // points to start of arg data
 	ldr w12, [x12, #str_size] // get arg size
 	ldr w12, [x12, #int_slot]
@@ -828,23 +830,23 @@ _strcat_copy:
 	cmp w10, w12
 	b.ne _strcat_copy
 	strb wzr, [x9, #0] // add '\0'
-	ldr w30, [sp, #16] // restore return address
-	add sp, sp, #20 // pop argument
+	ldr w30, [sp, #32] // restore return address
+	add sp, sp, #40 // pop argument
 	ret // return
 _strcat_argempty:
-	ldr w0, [sp, #12] // load original self
-	ldr w30, [sp, #16] // restore return address
-	add sp, sp, #20 // pop argument
+	ldr w0, [sp, #24] // load original self
+	ldr w30, [sp, #32] // restore return address
+	add sp, sp, #40 // pop argument
 	ret // return
 
 	.globl	String.substr
 String.substr:
-	add sp, sp, #-12 // frame
-	str w30, [sp, #4] // save return
-	str w0, [sp, #12] // save self
-	str wzr, [sp, #8] // init GC area
+	add sp, sp, #-24 // frame
+	str w30, [sp, #8] // save return
+	str w0, [sp, #24] // save self
+	str wzr, [sp, #16] // init GC area
 	bl _MemMgr_Test // test GC area
-	ldr w0, [sp, #12]
+	ldr w0, [sp, #24]
 	ldr w6, [x0, #obj_size]
 	adr x0, Int_protObj // ask if enough room to allocate
 	ldr w0, [x0, #obj_size] // a string object, an int object,
@@ -857,15 +859,15 @@ _ss_ok:
 	adr x0, Int_protObj
 	bl _quick_copy
 	bl Int_init
-	str w0, [sp, #8] // save new length obj
+	str w0, [sp, #16] // save new length obj
 	adr x0, String_protObj
 	bl _quick_copy
 	bl String_init // new obj ptr in $a0
 	mov w2, w0 // use a2 to make copy
 	add w27, w27, #-4 // backup alloc ptr
-	ldr w1, [sp, #12] // load orig
-	ldr w9, [sp, #20] // index obj
-	ldr w10, [sp, #16] // length obj
+	ldr w1, [sp, #24] // load orig
+	ldr w9, [sp, #40] // index obj
+	ldr w10, [sp, #32] // length obj
 	ldr w12, [x1, #str_size]
 	ldr w7, [x9, #int_slot] // index
 	ldr w6, [x12, #int_slot] // size of orig
@@ -879,7 +881,7 @@ _ss_ok:
 	b.gt _ss_abort3
 	cmp w11, wzr
 	b.lt _ss_abort4
-	ldr w13, [sp, #8] // load new length obj
+	ldr w13, [sp, #16] // load new length obj
 	str w11, [x13, #int_slot] // save new size
 	str w13, [x0, #str_size] // store size in string
 	ldr w7, [x9, #int_slot] // index
@@ -905,8 +907,8 @@ _ss_end:
 	sub w12, w27, w0 // calc object size
 	lsr w12, w12, #2 // div by 4 (srl - shift right logical)
 	str w12, [x0, #obj_size]	
-	ldr w30, [sp, #4]
-	add sp, sp, #20 // pop arguments
+	ldr w30, [sp, #8]
+	add sp, sp, #40 // pop arguments
 	ret
 _ss_abort1:
 	ldr	w0, =_sabort_msg1
@@ -928,13 +930,13 @@ _ss_abort:
 
 	.globl _MemMgr_Init
 _MemMgr_Init:
-	add sp, sp, #-4 // // save return address
-	str w30, [sp, #4]
+	add sp, sp, #-8 // // save return address
+	str w30, [sp, #8]
 	adr x12, _MemMgr_INITIALIZER // pointer to initialization
 	ldr w12, [x12, #0]
 	blr x12 // initialize
-	ldr w30, [sp, #4] // // restore return address
-	add sp, sp, #4
+	ldr w30, [sp, #8] // // restore return address
+	add sp, sp, #8
 	ret // return
 
 	.globl _MemMgr_Alloc
@@ -943,15 +945,15 @@ _MemMgr_Alloc:
 	cmp w27, w26
 	b.lt _MemMgr_Alloc_end // check allocation
 	sub w27, w27, w0 // restore $gp
-	add sp, sp, #-4
-	str w30, [sp, #4] // save return address
+	add sp, sp, #-8
+	str w30, [sp, #8] // save return address
 	mov w1, w0 // size
-	add w0, wsp, #4 // end of stack to collect
+	add x0, sp, #8 // end of stack to collect
 	adr x12, _MemMgr_COLLECTOR // pointer to collector function
 	ldr w12, [x12, #0]
 	blr x12 // garbage collect
-    ldr w30, [sp, #4]
-	add sp, sp, #4
+    ldr w30, [sp, #8]
+	add sp, sp, #8
 	mov w0, w1 // put size into $a0
 	add w27, w27, w0 // allocate storage
 _MemMgr_Alloc_end:
@@ -963,15 +965,15 @@ _MemMgr_QAlloc:
 	add w12, w27, w0
 	cmp w12, w26
 	b.lt _MemMgr_QAlloc_end // check allocation
-	add sp, sp, #-4 // attempt to allocate storage
-	str w30, [sp, #4] // save return address
+	add sp, sp, #-8 // attempt to allocate storage
+	str w30, [sp, #8] // save return address
 	mov w1, w0 // size
-	add w0, wsp, #4 // end of stack to collect
+	add x0, sp, #8 // end of stack to collect
 	adr x12, _MemMgr_COLLECTOR // pointer to collector function
 	ldr w12, [x12, #0]
 	blr x12 // garbage collect
-	ldr w30, [sp, #4] // restore return address
-	add sp, sp, #4
+	ldr w30, [sp, #8] // restore return address
+	add sp, sp, #8
 	mov w0, w1 // put size into $a0
 _MemMgr_QAlloc_end:
 	ret // return
@@ -984,15 +986,15 @@ _MemMgr_Test:
 	b.eq _MemMgr_Test_end
 
 // Allocate 0 bytes
-	add sp, sp, #-4 // Save return address
-	str w30, [sp, #4]
+	add sp, sp, #-8 // Save return address
+	str w30, [sp, #8]
 	mov w1, #0 // size = 0
-	add w0, wsp, #4 // end of stack to collect
+	add x0, sp, #8 // end of stack to collect
 	adr x12, _MemMgr_COLLECTOR // pointer to collector function
 	ldr w12, [x12, #0]
 	blr x12 // garbage collect
-	ldr w30, [sp, #4] // restore return address
-	add sp, sp, #4
+	ldr w30, [sp, #8] // restore return address
+	add sp, sp, #8
 
 _MemMgr_Test_end:
 	ret
@@ -1054,16 +1056,16 @@ _GenGC_Assign:
 	str w1, [x26, #0] // save pointer to assignment
 	cmp w26, w27
 	b.gt _GenGC_Assign_done
-	add sp, sp, #-8
-	str w30, [sp, #8] // save return address
-	str w0, [sp, #4] // sm: save $a0
+	add sp, sp, #-16
+	str w30, [sp, #16] // save return address
+	str w0, [sp, #8] // sm: save $a0
 	mov w1, wzr // size
-	add w0, wsp, #0 // end of stack to collect
+	add x0, sp, #0 // end of stack to collect
 	str wzr, [sp, #0] // play it safe with off-by-1
 	bl _GenGC_Collect
-	ldr w30, [sp, #8] // restore return address
-	ldr w0, [sp, #4] // restore $a0
-	add sp, sp, #8
+	ldr w30, [sp, #16] // restore return address
+	ldr w0, [sp, #8] // restore $a0
+	add sp, sp, #16
 _GenGC_Assign_done:
 	ret // return
 
@@ -1086,13 +1088,13 @@ _gc_abort:
 
 	.globl _GenGC_Collect
 _GenGC_Collect:
-	add sp, sp, #-12
-	str w30, [sp, #12] // save return address
-	str w0, [sp, #8] // save stack end
-	str w1, [sp, #4] // save size
+	add sp, sp, #-24
+	str w30, [sp, #24] // save return address
+	str w0, [sp, #16] // save stack end
+	str w1, [sp, #8] // save size
 	ldr w0, =_GenGC_COLLECT // print collection message
 	bl puts
-	ldr w0, [sp, #8] // restore stack end
+	ldr w0, [sp, #16] // restore stack end
 	bl _GenGC_MinorC // minor collection
 	adr x1, heap_start
 	ldr w9, [x1, #GenGC_HDRMINOR1]
@@ -1127,7 +1129,7 @@ _GenGC_Collect_breakpt:
 	b.ge _GenGC_Collect_major
 	ldr w12, [x1, #GenGC_HDRL2]
 	ldr w9, [x1, #GenGC_HDRL3]
-	ldr w10, [sp, #4] // load requested size into $t2
+	ldr w10, [sp, #8] // load requested size into $t2
 	sub w12, w9, w12 // find reserve/work area barrier
 	lsr w12, w12, #1
 	ldr w11, =0xfffffffc
@@ -1146,7 +1148,7 @@ _GenGC_Collect_nomajor:
 _GenGC_Collect_major:
 	ldr w0, =_GenGC_Major // print collection message
 	bl puts
-	ldr w0, [sp, #8] // restore stack end
+	ldr w0, [sp, #16] // restore stack end
 	bl _GenGC_MajorC // major collection
 	adr x1, heap_start
 	ldr w9, [x1, #GenGC_HDRMAJOR1]
@@ -1169,7 +1171,7 @@ _GenGC_Collect_major:
 	ldr w11, =0xfffffffc
 	and w10, w10, w11
 	sub w9, w9, w10 // reserve/work barrier
-	ldr w10, [sp, #4] // restore size
+	ldr w10, [sp, #8] // restore size
 	add w9, w9, w10
 	ldr w10, [x1, #GenGC_HDRL3] // load L3
 	sub w9, w9, w10 // test allocation
@@ -1226,9 +1228,9 @@ _GenGC_Clear_loop:
 	cmp w12, w26
 	b.lt _GenGC_Clear_loop
 	
-	str w1, [sp, #4] // restore size
-	str w30, [sp, #12] // restore return address
- 	add sp, sp, #12
+	str w1, [sp, #8] // restore size
+	str w30, [sp, #24] // restore return address
+ 	add sp, sp, #24
 	ret // return
 
 	.globl _GenGC_ChkCopy
@@ -1274,31 +1276,31 @@ _GenGC_ChkCopy_forward:
 
  	.globl _GenGC_MinorC
 _GenGC_MinorC:
-	add sp, sp, #-20
- 	str w30, [sp, #20] // save return address
+	add sp, sp, #-40
+ 	str w30, [sp, #40] // save return address
 	adr x12, heap_start
 	ldr w1, [x12, #GenGC_HDRL2] // set lower bound to work area
 	mov w2, w26 // set upper bound for ChkCopy
 	ldr w27, [x12, #GenGC_HDRL1] // set $gp into reserve area
-	str w0, [sp, #16] // save stack end
+	str w0, [sp, #32] // save stack end
 	ldr w12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
 	mov w9, w0 // set $t1 to stack end
 	cmp w12, w9
 	b.le _GenGC_MinorC_stackend // check for empty stack
 _GenGC_MinorC_stackloop: // $t1 stack end, $t0 index
  	add w12, w12, #-4 // update index
-	str w12, [sp, #12] // save stack index
+	str w12, [sp, #24] // save stack index
 	ldr w0, [x12, #4] // get stack item
 	bl _GenGC_ChkCopy // check and copy
-	ldr w12, [sp, #12] // load stack index
+	ldr w12, [sp, #24] // load stack index
 	str w0, [x12, #4]
-	ldr w9, [sp, #16] // restore stack end
+	ldr w9, [sp, #32] // restore stack end
 	cmp w12, w9 // loop
 	b.gt _GenGC_MinorC_stackloop
 _GenGC_MinorC_stackend:
  	adr x12, heap_start
 	ldr w12, [x12, #GenGC_HDRREG] // get Register mask
-	str w12, [sp, #16] // save Register mask
+	str w12, [sp, #32] // save Register mask
 _GenGC_MinorC_reg16:
  	lsr w12, w12, #16 // shift to proper bit
 	add w9, w12, #1
@@ -1308,7 +1310,7 @@ _GenGC_MinorC_reg16:
 	bl _GenGC_ChkCopy
 	mov w19, w0 // update register
 _GenGC_MinorC_reg17:
-	ldr w12, [sp, #16] // restore mask
+	ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #17 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1317,7 +1319,7 @@ _GenGC_MinorC_reg17:
 	bl _GenGC_ChkCopy // check and copy
 	mov w20, w0 // update register
 _GenGC_MinorC_reg18:
- 	ldr w12, [sp, #16] // restore mask
+ 	ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #18 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1326,7 +1328,7 @@ _GenGC_MinorC_reg18:
 	bl _GenGC_ChkCopy // check and copy
 	mov w21, w0 // update register
 _GenGC_MinorC_reg19:
- 	ldr w12, [sp, #16] // restore mask
+ 	ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #19 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1335,7 +1337,7 @@ _GenGC_MinorC_reg19:
 	bl _GenGC_ChkCopy // check and copy
 	mov w22, w0 // update register
 _GenGC_MinorC_reg20:
- 	ldr w12, [sp, #16] // restore mask
+ 	ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #20 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1344,7 +1346,7 @@ _GenGC_MinorC_reg20:
 	bl _GenGC_ChkCopy // check and copy
 	mov w23, w0 // update register
 _GenGC_MinorC_reg21:
- 	ldr w12, [sp, #16] // restore mask
+ 	ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #21 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1353,7 +1355,7 @@ _GenGC_MinorC_reg21:
 	bl _GenGC_ChkCopy // check and copy
 	mov w24, w0 // update register
 _GenGC_MinorC_reg22:
- 	ldr w12, [sp, #16] // restore mask
+ 	ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #22 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1362,7 +1364,7 @@ _GenGC_MinorC_reg22:
 	bl _GenGC_ChkCopy // check and copy
 	mov w25, w0 // update register
 _GenGC_MinorC_reg24:
-    ldr w12, [sp, #16] // restore mask
+    ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #24 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1371,7 +1373,7 @@ _GenGC_MinorC_reg24:
 	bl _GenGC_ChkCopy // check and copy
 	mov w14, w0 // update register
 _GenGC_MinorC_reg25:
-    ldr w12, [sp, #16] // restore mask
+    ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #25 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1380,7 +1382,7 @@ _GenGC_MinorC_reg25:
 	bl _GenGC_ChkCopy // check and copy
 	mov w15, w0 // update register
 _GenGC_MinorC_reg30:
- 	ldr w12, [sp, #16] // restore mask
+ 	ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #30 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1389,7 +1391,7 @@ _GenGC_MinorC_reg30:
 	bl _GenGC_ChkCopy // check and copy
 	mov w29, w0 // update register
 _GenGC_MinorC_reg31:
- 	ldr w12, [sp, #16] // restore mask
+ 	ldr w12, [sp, #32] // restore mask
  	lsr w12, w12, #31 // shift to proper bit
 	add w9, w12, #1
 	cmp w9, wzr
@@ -1402,7 +1404,7 @@ _GenGC_MinorC_regend:
 	ldr w11, [x12, #GenGC_HDRL0] // lower limit of old area
  	ldr w13, [x12, #GenGC_HDRL1] // upper limit of old area
 	ldr w12, [x12, #GenGC_HDRL3] // get L3
-	str w12, [sp, #16] // save index limit
+	str w12, [sp, #32] // save index limit
 	cmp w26, w12
 	b.ge _GenGC_MinorC_assnend // check for no assignments
 _GenGC_MinorC_assnloop:				# $s7 index, $t0 limit
@@ -1415,7 +1417,7 @@ _GenGC_MinorC_assnloop:				# $s7 index, $t0 limit
 	bl _GenGC_ChkCopy // check and copy
 	ldr w12, [x26, #0]
 	str w0, [x12, #0] // update pointer
-	ldr w12, [sp, #16] // restore index limit
+	ldr w12, [sp, #32] // restore index limit
 _GenGC_MinorC_assnnext:
  	add w26, w26, #4 // update index
 	cmp w26, w12
@@ -1451,31 +1453,31 @@ _GenGC_MinorC_other:
 	add w10, w12, w0 // limit of attributes
 	cmp w9, w10
 	b.ge _GenGC_MinorC_nextobj  //check for no attributes
-	str w12, [sp, #16] // save pointer to object
-	str w0, [sp, #12] // save object size
-	str w10, [sp, #4] // save limit
+	str w12, [sp, #32] // save pointer to object
+	str w0, [sp, #24] // save object size
+	str w10, [sp, #8] // save limit
 _GenGC_MinorC_objloop:				# $t1: index, $t2: limit
- 	str w9, [sp, #8] // save index
+ 	str w9, [sp, #16] // save index
 	ldr w9, [x9, #0] // set pointer to check
 	bl _GenGC_ChkCopy // check and copy
-	ldr w9, [sp, #8] // restore index
+	ldr w9, [sp, #16] // restore index
 	str w0, [x9, #0] // update object pointer
-	ldr w10, [sp, #4] // restore limit
+	ldr w10, [sp, #8] // restore limit
 	add w9, w9, #4
 	cmp w9, w10
 	b.lt _GenGC_MinorC_objloop // loop
 _GenGC_MinorC_objend:
- 	ldr w12, [sp, #16] // restore pointer to object
-	ldr w0, [sp, #12] // restore object size
+ 	ldr w12, [sp, #32] // restore pointer to object
+	ldr w0, [sp, #24] // restore object size
 	b _GenGC_MinorC_nextobj // next object
 _GenGC_MinorC_string:
- 	str w12, [sp, #16] // save pointer to object
-	str w0, [sp, #12] // save object size
+ 	str w12, [sp, #32] // save pointer to object
+	str w0, [sp, #24] // save object size
 	ldr w0, [x12, #str_size]
 	bl _GenGC_ChkCopy // check and copy
-	ldr w12, [sp, #16] // restore pointer to object
+	ldr w12, [sp, #32] // restore pointer to object
 	str w0, [x12, #str_size] // update size pointer
-	ldr w0, [sp, #12] // restore object size
+	ldr w0, [sp, #24] // restore object size
 _GenGC_MinorC_int:
 _GenGC_MinorC_bool:
 _GenGC_MinorC_nextobj:
@@ -1489,8 +1491,8 @@ _GenGC_MinorC_heapend:
 	str w27, [x12, #GenGC_HDRL2] // set L2 to $gp
 	ldr w0, [x12, #GenGC_HDRL1]
 	sub w0, w27, w0 // find size after collection
-	ldr w30, [sp, #20] // restore return address
-	add sp, sp, #20
+	ldr w30, [sp, #40] // restore return address
+	add sp, sp, #40
 	ret // return
 _GenGC_MinorC_error:
  	ldr w0, =_GenGC_MINORERROR // show error message
@@ -1567,15 +1569,15 @@ _GenGC_OfsCopy_forward:
 
  	.globl _GenGC_MajorC
 _GenGC_MajorC:
-	add sp, sp, #-20
-	str w30, [sp, #20] // save return address
+	add sp, sp, #-40
+	str w30, [sp, #40] // save return address
 	adr x12, heap_start
  	ldr w26, [x12, #GenGC_HDRL4] // limit pointer for collection
 	ldr w27, [x12, #GenGC_HDRL2] // allocation pointer for collection
 	ldr w1, [x12, #GenGC_HDRL0] // set inputs for OfsCopy
 	ldr w2, [x12, #GenGC_HDRL1]
 	ldr w7, [x12, #GenGC_HDRL2]
-	str w0, [sp, #16] // save stack end
+	str w0, [sp, #32] // save stack end
 	ldr w12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
 	mov w9, w0 // set $t1 to stack end
 	cmp w12, w9
@@ -1585,15 +1587,15 @@ _GenGC_MajorC_stackloop: 			# $t1 stack end, $t0 index
 	str w12, [sp, #12] // save stack index
 	ldr w0, [x12, #4] // get stack item
 	bl _GenGC_OfsCopy // check and copy
-	ldr w12, [sp, #12] // load stack index
+	ldr w12, [sp, #24] // load stack index
 	str w0, [x12, #4]
-	ldr w9, [sp, #16] // restore stack end
+	ldr w9, [sp, #32] // restore stack end
 	cmp w12, w9
 	b.gt _GenGC_MajorC_stackloop // loop
 _GenGC_MajorC_stackend:
 	adr x12, heap_start
 	ldr w12, [x12, #GenGC_HDRREG] // get Register mask
-	str w12, [sp, #16] // save Register mask
+	str w12, [sp, #32] // save Register mask
 _GenGC_MajorC_reg16:
 	lsr w12, w12, #16 // shift to proper bit
     add w9, w12, #1
@@ -1603,7 +1605,7 @@ _GenGC_MajorC_reg16:
 	bl _GenGC_OfsCopy // check and copy
 	mov w19, w0 // update register
 _GenGC_MajorC_reg17:
-	ldr w12, [sp, #16] // restore mask
+	ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #17 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1612,7 +1614,7 @@ _GenGC_MajorC_reg17:
 	bl _GenGC_OfsCopy // check and copy
 	mov w20, w0 // update register
 _GenGC_MajorC_reg18:
- 	ldr w12, [sp, #16] // restore mask
+ 	ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #18 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1621,7 +1623,7 @@ _GenGC_MajorC_reg18:
 	bl _GenGC_OfsCopy // check and copy
 	mov w21, w0 // update register
 _GenGC_MajorC_reg19:
- 	ldr w12, [sp, #16] // restore mask
+ 	ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #19 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1630,7 +1632,7 @@ _GenGC_MajorC_reg19:
 	bl _GenGC_OfsCopy // check and copy
 	mov w22, w0 // update register
 _GenGC_MajorC_reg20:
-	ldr w12, [sp, #16] // restore mask
+	ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #20 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1639,7 +1641,7 @@ _GenGC_MajorC_reg20:
 	bl _GenGC_OfsCopy // check and copy
 	mov w23, w0 // update register
 _GenGC_MajorC_reg21:
-    ldr w12, [sp, #16] // restore mask
+    ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #21 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1648,7 +1650,7 @@ _GenGC_MajorC_reg21:
 	bl _GenGC_OfsCopy // check and copy
 	mov w24, w0 // update register
 _GenGC_MajorC_reg22:
-	ldr w12, [sp, #16] // restore mask
+	ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #22 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1657,7 +1659,7 @@ _GenGC_MajorC_reg22:
 	bl _GenGC_OfsCopy // check and copy
 	mov w25, w0 // update register
 _GenGC_MajorC_reg24:
-	ldr w12, [sp, #16] // restore mask
+	ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #24 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1666,7 +1668,7 @@ _GenGC_MajorC_reg24:
 	bl _GenGC_OfsCopy // check and copy
 	mov w14, w0 // update register
 _GenGC_MajorC_reg25:
-    ldr w12, [sp, #16] // restore mask
+    ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #25 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1675,7 +1677,7 @@ _GenGC_MajorC_reg25:
 	bl _GenGC_OfsCopy // check and copy
 	mov w15, w0 // update register
 _GenGC_MajorC_reg30:
-	ldr w12, [sp, #16] // restore mask
+	ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #30 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1684,7 +1686,7 @@ _GenGC_MajorC_reg30:
 	bl _GenGC_OfsCopy // check and copy
 	mov w29, w0 // update register
 _GenGC_MajorC_reg31:
-	ldr w12, [sp, #16] // restore mask
+	ldr w12, [sp, #32] // restore mask
 	lsr w12, w12, #31 // shift to proper bit
     add w9, w12, #1
 	cmp w9, wzr
@@ -1723,31 +1725,31 @@ _GenGC_MajorC_other:
 	add w10, w12, w0 // limit of attributes
 	cmp w9, w10
 	b.ge _GenGC_MajorC_nextobj // check for no attributes
-	str w12, [sp, #16] // save pointer to object
-	str w0, [sp, #12] // save object size
-	str w10, [sp, #4] // save limit
+	str w12, [sp, #32] // save pointer to object
+	str w0, [sp, #24] // save object size
+	str w10, [sp, #8] // save limit
 _GenGC_MajorC_objloop:				// $t1: index, $t2: limit
- 	str w9, [sp, #8] // save index
+ 	str w9, [sp, #16] // save index
 	ldr w0, [x9, #0] // set pointer to check 
 	bl _GenGC_OfsCopy // check and copy
-	ldr w9, [sp, #8] // restore index
+	ldr w9, [sp, #16] // restore index
 	str w0, [x9, #0] // update object pointer
-	ldr w10, [sp, #4] // restore limit
+	ldr w10, [sp, #8] // restore limit
 	add w9, w9, #4
 	cmp w9, w10
 	b.lt _GenGC_MajorC_objloop // loop
 _GenGC_MajorC_objend:
-	ldr w12, [sp, #16] // restore pointer to object
-	ldr w0, [sp, #12] // restore object size
+	ldr w12, [sp, #32] // restore pointer to object
+	ldr w0, [sp, #24] // restore object size
 	b _GenGC_MajorC_nextobj // next object
 _GenGC_MajorC_string:
-	str w12, [sp, #16] // save pointer to object
-	str w0, [sp, #12] // save object size
+	str w12, [sp, #32] // save pointer to object
+	str w0, [sp, #24] // save object size
 	ldr w0, [x12, #str_size] // set test pointer
  	bl _GenGC_OfsCopy // check and copy
-	ldr w12, [sp, #16] // restore pointer to object
+	ldr w12, [sp, #32] // restore pointer to object
 	str w0, [x12, #str_size] // update size pointer
-	ldr w0, [sp, #12] // restore object size
+	ldr w0, [sp, #24] // restore object size
 _GenGC_MajorC_int:
 _GenGC_MajorC_bool:
 _GenGC_MajorC_nextobj:
@@ -1776,8 +1778,8 @@ _GenGC_MajorC_bcpyend:
 	sub w9, w10, w9 // find offset of block copy
 	sub w27, w27, w9 // find end of old area
 	str w27, [x12, #GenGC_HDRL1] // save end of old area
-	ldr w30, [sp, #20] // restore return address
-	add sp, sp, #20
+	ldr w30, [sp, #40] // restore return address
+	add sp, sp, #40
 	ret // return
 _GenGC_MajorC_error:
 	ldr w0, =_GenGC_MAJORERROR
@@ -1793,22 +1795,24 @@ _GenGC_MajorC_error:
 
 	.globl _NoGC_Init
 _NoGC_Init:
-	add sp, sp, #-4
-	str w30, [sp, #4]
+	add sp, sp, #-8
+	str w30, [sp, #0]
 	adr x27, heap_start // set $gp to the start of the heap
 	mov w0, #0 // get heap end
     bl sbrk  // sbrk
 	mov w26, w0 // set limit pointer
-	ldr w30, [sp, #4]
-	add sp, sp, #4
+	ldr w30, [sp, #0]
+	add sp, sp, #8
 	ret
 
 	.globl _NoGC_Collect
 _NoGC_Collect:
-    add sp, sp, #-4
-    str w30, [sp, #4]
+    add sp, sp, #-8
+    str w30, [sp, #0]
+	mov w5, w1 // save previous w1
 	ldr w0, =_NoGC_COLLECT // show collection message
-	bl puts
+	bl printf // now, w1 = 0x1 (stdout)
+	mov w1, w5 // restore previous w1
 
 _NoGC_Collect_loop:
 	add w12, w27, w1 // test allocation
@@ -1822,7 +1826,7 @@ _NoGC_Collect_loop:
 	mov w26, w6 // set limit pointer
 	b _NoGC_Collect_loop // loop
 _NoGC_Collect_ok:
-	ldr w30, [sp, #4]
-	add sp, sp, #4
+	ldr w30, [sp, #0]
+	add sp, sp, #8
 	ret // return
 
