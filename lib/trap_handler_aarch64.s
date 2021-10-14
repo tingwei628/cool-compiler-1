@@ -212,8 +212,6 @@
 _num: .word 0
 _fmt_int_array: .space array_maxsize_read_int
 _fmt_int_size=.-_fmt_int_array
-_fmt_str_array: .space str_maxsize
-_fmt_str_size=.- _fmt_str_array
 
 	.data
 // system call number
@@ -324,6 +322,8 @@ _GenGC_Init_test_msg:   .asciz "GenGC initialized in test mode.\n"
 _GenGC_Init_msg:        .asciz "GenGC initialized.\n"
 // Messages for the NoGC garabge collector
 _NoGC_COLLECT:		.asciz "Increasing heap...\n"
+stdin: .quad 0xfffff7fc6898 // temporary without pic (?)
+stdout: .quad 0xfffff7fc7548 // temporary without pic (?)
 
 	.globl __sig_handler2
 __sig_handler2:
@@ -707,25 +707,15 @@ IO.in_string:
 	str w0, [sp, #8] // save string object
 	add w27, w27, #-4 // overwrite last word
 _instr_ok:
-   
-    // reset array to read string
-    // use memset(arr, 0 ,sizeof(arr)) to clear array
-	//ldr x0, =_fmt_str_array
-    //ldr x1, #0
-    //mov x2, #str_maxsize
-    //bl memset
-
- 	ldr w0, =_fmt_str_array
-    mov w1, #_fmt_str_size
+	ldr x0, =stdin
+	ldr x0, [x0]
+	bl fflush // fflush(stdin)
+ 	mov w0, w27
+    mov w1, #str_maxsize
     ldr x2, =stdin
-    ldr w2, [x2]
+    ldr x2, [x2]
     bl fgets // read string
-    bl strlen
-	ldr w1, =_fmt_str_array
-	sub w0, w0, #1 // x0 (strlen return) has len+1, so it needs to reduced by 1
-	str wzr, [x1, x0] // // add '\0' (xzr) to end of string
-	mov w27, w1 // move string address to $gp
-	mov w12, w27 // t0 to beginning of string
+    mov w12, w27 // t0 to beginning of string
 _instr_find_end:
 	ldrsb w6, [x27, #0]
  	add w27, w27, #1
@@ -752,7 +742,7 @@ _instr_noteof:
 _instr_nonl:
  	ldr w0, [sp, #8] // get pointer to new str obj
 	ldr w9, [x0, #str_size] // get pointer to int obj
-	sub w0, w27, w0
+	sub w12, w27, w0
 	sub w12, w12, #str_field // calc actual str size
 	add w12, w12, #-1 // adjust for '\0'
 	str w12, [x9, #int_slot] // store string size in int obj
@@ -1807,11 +1797,12 @@ _NoGC_Init:
 
 	.globl _NoGC_Collect
 _NoGC_Collect:
-    add sp, sp, #-8
-    str w30, [sp, #0]
-	mov w5, w1 // save previous w1
+	add sp, sp, #-24
+    str w30, [sp, #8]
+	str w1, [sp, #16] // save previous w1
 	ldr w0, =_NoGC_COLLECT // show collection message
 	bl printf // now, w1 = 0x1 (stdout)
+	ldr w5, [sp, #16]
 	mov w1, w5 // restore previous w1
 
 _NoGC_Collect_loop:
@@ -1826,7 +1817,7 @@ _NoGC_Collect_loop:
 	mov w26, w6 // set limit pointer
 	b _NoGC_Collect_loop // loop
 _NoGC_Collect_ok:
-	ldr w30, [sp, #0]
-	add sp, sp, #8
+	ldr w30, [sp, #8]
+	add sp, sp, #24
 	ret // return
 
