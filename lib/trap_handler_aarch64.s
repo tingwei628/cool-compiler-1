@@ -628,7 +628,23 @@ IO.out_string:
 	str w0, [sp, #8]
 	ldr w0, [sp, #16] // get arg
 	add w0, w0, #str_field
-	bl printf // print_str
+	mov w1, #10 // \n
+    bl strchr // test whether string has newline or not
+    cmp w0, wzr
+    b.eq _print_fflush
+    ldr w0, [sp, #16]
+    add w0, w0, #str_field
+_print_newline:
+    bl printf // print_str
+    b _print_end
+_print_fflush:
+    ldr w0, [sp, #16]
+    add w0, w0, #str_field
+    bl printf
+    ldr x0, =stdout
+    ldr x0, [x0]
+    bl fflush // flush(stdout) for printf without newline
+_print_end:
 	ldr w0, [sp, #8] // return self
 	ldr w30, [sp, #0] // restore return address
 	add sp, sp, #16 // pop argument
@@ -658,13 +674,6 @@ IO.in_int:
 	bl Int_init
 	add sp, sp, #-8
 	str w0, [sp, #8] // save new object
-
-    // reset array and num to read int
-    // use memset(arr, 0 ,sizeof(arr)) to clear array
-	ldr w0, =_fmt_int_array
-    ldr w1, #0
-    mov w2, #array_maxsize_read_int
-    bl memset
 	// reset num to 0
 	ldr w1, =_num
 	str wzr, [x1]
@@ -672,7 +681,7 @@ IO.in_int:
     ldr w0, =_fmt_int_array
     mov w1, #_fmt_int_size
     ldr x2, =stdin
-    ldr w2, [x2]
+    ldr x2, [x2]
     bl fgets   
     ldr w1, =_fmt_read_int
     ldr w2, =_num
