@@ -233,18 +233,30 @@ _fmt_int_size=.-_fmt_int_array
 
 .equ array_maxsize_read_int, 12 // char array size for reading int
 
-.equ GenGC_HDRSIZE, 44				// size of GenGC header
+//.equ GenGC_HDRSIZE, 44				// size of GenGC header
+//.equ GenGC_HDRL0, 0					// pointers to GenGC areas
+//.equ GenGC_HDRL1, 4
+//.equ GenGC_HDRL2, 8
+//.equ GenGC_HDRL3, 12
+//.equ GenGC_HDRL4, 16
+//.equ GenGC_HDRMAJOR0, 20				// history of major collections
+//.equ GenGC_HDRMAJOR1, 24
+//.equ GenGC_HDRMINOR0, 28				// history of minor collections
+//.equ GenGC_HDRMINOR1, 32
+//.equ GenGC_HDRSTK, 36					// start of stack
+//.equ GenGC_HDRREG, 40					// current REG mask
+.equ GenGC_HDRSIZE, 88				// size of GenGC header
 .equ GenGC_HDRL0, 0					// pointers to GenGC areas
-.equ GenGC_HDRL1, 4
-.equ GenGC_HDRL2, 8
-.equ GenGC_HDRL3, 12
-.equ GenGC_HDRL4, 16
-.equ GenGC_HDRMAJOR0, 20				// history of major collections
-.equ GenGC_HDRMAJOR1, 24
-.equ GenGC_HDRMINOR0, 28				// history of minor collections
-.equ GenGC_HDRMINOR1, 32
-.equ GenGC_HDRSTK, 36					// start of stack
-.equ GenGC_HDRREG, 40					// current REG mask
+.equ GenGC_HDRL1, 8
+.equ GenGC_HDRL2, 16
+.equ GenGC_HDRL3, 24
+.equ GenGC_HDRL4, 32
+.equ GenGC_HDRMAJOR0, 40				// history of major collections
+.equ GenGC_HDRMAJOR1, 48
+.equ GenGC_HDRMINOR0, 56				// history of minor collections
+.equ GenGC_HDRMINOR1, 64
+.equ GenGC_HDRSTK, 72					// start of stack
+.equ GenGC_HDRREG, 80					// current REG mask
 .equ GenGC_HEAPEXPGRAN, 14				// 2^14=16K
 .equ GenGC_OLDRATIO, 2				// 1/(2^2)=.25=25%
 
@@ -1007,30 +1019,50 @@ _MemMgr_Test_end:
 
 	.globl _GenGC_Init
 _GenGC_Init:
+	add sp, sp, #-8
+	str w30, [sp, #0]
 	adr x12, heap_start
 	add w9, w12, #GenGC_HDRSIZE
+	//str w9, [x12, #GenGC_HDRL0] // save start of old area
 	str w9, [x12, #GenGC_HDRL0] // save start of old area
-	str w9, [x12, #GenGC_HDRL1] // save start of reserve area
-	sub w9, w2, w9 // find reserve/work area barrier
-	lsr w9, w9, #1
-	ldr w6, =0xfffffffc
-	and w9, w9, w6
-	cmp w9, wzr            // heap initially to small
+	//str w9, [x12, #GenGC_HDRL1] // save start of reserve area
+	str x9, [x12, #GenGC_HDRL1] // save start of reserve area
+	//sub w9, w2, w9 // find reserve/work area barrier
+	sub x9, x2, x9 // find reserve/work area barrier
+	//lsr w9, w9, #1
+	lsr x9, x9, #1
+	//ldr w6, =0xfffffffc
+	ldr x6, =0xfffffffffffffff8
+	//and w9, w9, w6
+	and x9, x9, x6
+	//cmp w9, wzr            // heap initially to small
+	cmp x9, xzr            // heap initially to small
 	b.le _GenGC_Init_error //
-	sub	w27, w2, w9
-	str w27, [x12, #GenGC_HDRL2] // save start of work area
-	str w2, [x12, #GenGC_HDRL3] // save end of work area
-	mov w26, w2 // set limit pointer
-	str wzr, [x12, #GenGC_HDRMAJOR0] // clear histories
-	str wzr, [x12, #GenGC_HDRMAJOR1]
-	str wzr, [x12, #GenGC_HDRMINOR0]
-	str wzr, [x12, #GenGC_HDRMINOR1]
-	str w0, [x12, #GenGC_HDRSTK] // save stack start
+	//sub	w27, w2, w9
+	sub	x27, x2, x9
+	//str w27, [x12, #GenGC_HDRL2] // save start of work area
+	str x27, [x12, #GenGC_HDRL2] // save start of work area
+	//str w2, [x12, #GenGC_HDRL3] // save end of work area
+	str x2, [x12, #GenGC_HDRL3] // save end of work area
+	//mov w26, w2 // set limit pointer
+	mov x26, x2 // set limit pointer
+	//str wzr, [x12, #GenGC_HDRMAJOR0] // clear histories
+	str xzr, [x12, #GenGC_HDRMAJOR0] // clear histories
+	//str wzr, [x12, #GenGC_HDRMAJOR1]
+	str xzr, [x12, #GenGC_HDRMAJOR1]
+	//str wzr, [x12, #GenGC_HDRMINOR0]
+	str xzr, [x12, #GenGC_HDRMINOR0]
+	//str wzr, [x12, #GenGC_HDRMINOR1]
+	str xzr, [x12, #GenGC_HDRMINOR1]
+	//str w0, [x12, #GenGC_HDRSTK] // save stack start
+	str x0, [x12, #GenGC_HDRSTK] // save stack start
 	str w1, [x12, #GenGC_HDRREG] // save register mask
 	mov w0, #0 // get heap end
     bl sbrk
-	mov w6, w0
-	str w6, [x12, #GenGC_HDRL4] // save heap limit
+	//mov w6, w0
+	mov x6, x0
+	//str w6, [x12, #GenGC_HDRL4] // save heap limit
+	str x6, [x12, #GenGC_HDRL4] // save heap limit
     adr x12, _MemMgr_TEST // Check if testing enabled
 	ldr w12, [x12, #0]
 	cmp w12, wzr
@@ -1042,6 +1074,8 @@ _MemMgr_Test_false:
 	ldr w0, =_GenGC_Init_msg
 	bl puts
 _GenGC_Init_end:
+    ldr w30, [sp, #8]
+	add sp, sp, #8
 	ret // return
 _GenGC_Init_error:
 	ldr w0, =_GenGC_INITERROR //show error message
@@ -1089,157 +1123,265 @@ _gc_abort:
 _GenGC_Collect:
 	add sp, sp, #-24
 	str w30, [sp, #24] // save return address
-	str w0, [sp, #16] // save stack end
+	//str w0, [sp, #16] // save stack end
+	str x0, [sp, #16] // save stack end
 	str w1, [sp, #8] // save size
 	ldr w0, =_GenGC_COLLECT // print collection message
 	bl puts
-	ldr w0, [sp, #16] // restore stack end
+	//ldr w0, [sp, #16] // restore stack end
+	ldr x0, [sp, #16] // restore stack end
 	bl _GenGC_MinorC // minor collection
 	adr x1, heap_start
-	ldr w9, [x1, #GenGC_HDRMINOR1]
-	add w9, w9, w0
-	lsr w9, w9, #1
-	str w9, [x1, #GenGC_HDRMINOR1] // update histories
-    str w0, [x1, #GenGC_HDRMINOR0]
-	mov w12, w9 // set $t0 to max of minor
-	cmp w9, w0
+	//ldr w9, [x1, #GenGC_HDRMINOR1]
+	ldr x9, [x1, #GenGC_HDRMINOR1]
+	//add w9, w9, w0
+	add x9, x9, x0
+	//lsr w9, w9, #1
+	lsr x9, x9, #1
+	//str w9, [x1, #GenGC_HDRMINOR1] // update histories
+	str x9, [x1, #GenGC_HDRMINOR1] // update histories
+    //str w0, [x1, #GenGC_HDRMINOR0]
+	str x0, [x1, #GenGC_HDRMINOR0]
+	//mov w12, w9 // set $t0 to max of minor
+	mov x12, x9 // set $t0 to max of minor
+	//cmp w9, w0
+	cmp x9, x0
 	b.gt _GenGC_Collect_maxmaj
-	mov w12, w0
+	//mov w12, w0
+	mov x12, x0
 _GenGC_Collect_maxmaj:
-	ldr w9, [x1, #GenGC_HDRMAJOR0] // set $t1 to max of major
-	ldr w10, [x1, #GenGC_HDRMAJOR1]
-	cmp w9, w10
+	//ldr w9, [x1, #GenGC_HDRMAJOR0] // set $t1 to max of major
+	ldr x9, [x1, #GenGC_HDRMAJOR0] // set $t1 to max of major
+	//ldr w10, [x1, #GenGC_HDRMAJOR1]
+	ldr x10, [x1, #GenGC_HDRMAJOR1]
+	//cmp w9, w10
+	cmp x9, x10
 	b.gt _GenGC_Collect_maxdef
-	mov w9, w10
+	//mov w9, w10
+	mov x9, x10
 _GenGC_Collect_maxdef:
-	ldr w10, [x1, #GenGC_HDRL3]
-	sub w12, w10, w12 // set $t0 to L3-$t0-$t1
-	sub w12, w12, w9
-	ldr w9, [x1, #GenGC_HDRL0] // set $t1 to L3-(L3-L0)/2
-	sub w9, w10, w9
-	lsr w9, w9, #1
-	sub w9, w10, w9
-	cmp w12, w9
+	//ldr w10, [x1, #GenGC_HDRL3]
+	ldr x10, [x1, #GenGC_HDRL3]
+	//sub w12, w10, w12 // set $t0 to L3-$t0-$t1
+	sub x12, x10, x12 // set $t0 to L3-$t0-$t1
+	//sub w12, w12, w9
+	sub x12, x12, x9
+	//ldr w9, [x1, #GenGC_HDRL0] // set $t1 to L3-(L3-L0)/2
+	ldr x9, [x1, #GenGC_HDRL0] // set $t1 to L3-(L3-L0)/2
+	//sub w9, w10, w9
+	sub x9, x10, x9
+	//lsr w9, w9, #1
+	lsr x9, x9, #1
+	//sub w9, w10, w9
+	sub x9, x10, x9
+	//cmp w12, w9
+	cmp x12, x9
 	b.lt _GenGC_Collect_breakpt // set $t0 to minimum of above
-	mov w12, w9
+	//mov w12, w9
+	mov x12, x9
 _GenGC_Collect_breakpt:
-	ldr w9, [x1, #GenGC_HDRL1] // get end of old area
-	cmp w9, w12
+	//ldr w9, [x1, #GenGC_HDRL1] // get end of old area
+	ldr x9, [x1, #GenGC_HDRL1] // get end of old area
+	//cmp w9, w12
+	cmp x9, x12
 	b.ge _GenGC_Collect_major
-	ldr w12, [x1, #GenGC_HDRL2]
-	ldr w9, [x1, #GenGC_HDRL3]
-	ldr w10, [sp, #8] // load requested size into $t2
-	sub w12, w9, w12 // find reserve/work area barrier
-	lsr w12, w12, #1
-	ldr w11, =0xfffffffc
-	and w12, w12, w11
-	sub w12, w9, w12 // reserve/work barrier
-	add w10, w12, w10 // test allocation
-	cmp w10, w9
+	//ldr w12, [x1, #GenGC_HDRL2]
+	ldr x12, [x1, #GenGC_HDRL2]
+	//ldr w9, [x1, #GenGC_HDRL3]
+	ldr x9, [x1, #GenGC_HDRL3]
+	//ldr w10, [sp, #8] // load requested size into $t2
+	ldr x10, [sp, #8] // load requested size into $t2
+	//sub w12, w9, w12 // find reserve/work area barrier
+	sub x12, x9, x12 // find reserve/work area barrier
+	//lsr w12, w12, #1
+	lsr x12, x12, #1
+	//ldr w11, =0xfffffffc
+	ldr x11, =0xfffffffffffffff8
+	//and w12, w12, w11
+	and x12, x12, x11
+	//sub w12, w9, w12 // reserve/work barrier
+	sub x12, x9, x12 // reserve/work barrier
+	//add w10, w12, w10 // test allocation
+	add x10, x12, x10 // test allocation
+	//cmp w10, w9
+	cmp x10, x9
 	b.ge _GenGC_Collect_major // check if work area too small
 _GenGC_Collect_nomajor:
- 	ldr w9, [x1, #GenGC_HDRL2]
-	str w9, [x1, #GenGC_HDRL1] // expand old area
-	str w12, [x1, #GenGC_HDRL2] // set new reserve/work barrier
-	mov w27, w12 // set $gp
-	ldr w26, [x1, #GenGC_HDRL3] // load limit into $s7
+ 	//ldr w9, [x1, #GenGC_HDRL2]
+	ldr x9, [x1, #GenGC_HDRL2]
+	//str w9, [x1, #GenGC_HDRL1] // expand old area
+	str x9, [x1, #GenGC_HDRL1] // expand old area
+	//str w12, [x1, #GenGC_HDRL2] // set new reserve/work barrier
+	str x12, [x1, #GenGC_HDRL2] // set new reserve/work barrier
+	//mov w27, w12 // set $gp
+	mov x27, x12 // set $gp
+	//ldr w26, [x1, #GenGC_HDRL3] // load limit into $s7
+	ldr x26, [x1, #GenGC_HDRL3] // load limit into $s7
 	b _GenGC_Collect_done
 _GenGC_Collect_major:
 	ldr w0, =_GenGC_Major // print collection message
 	bl puts
-	ldr w0, [sp, #16] // restore stack end
+	//ldr w0, [sp, #16] // restore stack end
+	ldr x0, [sp, #16] // restore stack end
 	bl _GenGC_MajorC // major collection
 	adr x1, heap_start
-	ldr w9, [x1, #GenGC_HDRMAJOR1]
-	add w9, w9, w0
-	lsr w9, w9, #1
-	str w9, [x1, #GenGC_HDRMAJOR1] // update histories
-	str w0, [x1, #GenGC_HDRMAJOR0]
-	ldr w9, [x1, #GenGC_HDRL3] // find ratio of the old area
-	ldr w12, [x1, #GenGC_HDRL0]
-	sub w9, w9, w12
-	lsr w9, w9, #GenGC_OLDRATIO
-	add w9, w12, w9
-	ldr w12, [x1, #GenGC_HDRL1]
-	sub w12, w12, w9
-	lsl w12, w12, #GenGC_OLDRATIO // amount to expand in $t0
-	ldr w9, [x1, #GenGC_HDRL3] // load L3
-	ldr w10, [x1, #GenGC_HDRL1] // load L1
-	sub w10, w9, w10
-	lsr w10, w10, #1
-	ldr w11, =0xfffffffc
-	and w10, w10, w11
-	sub w9, w9, w10 // reserve/work barrier
-	ldr w10, [sp, #8] // restore size
-	add w9, w9, w10
-	ldr w10, [x1, #GenGC_HDRL3] // load L3
-	sub w9, w9, w10 // test allocation
-	add w9, w9, #4 // adjust for round off errors
-	lsl w9, w9, #1 // need to allocate $t1 memory
-	cmp w9, w12
+	//ldr w9, [x1, #GenGC_HDRMAJOR1]
+	ldr x9, [x1, #GenGC_HDRMAJOR1]
+	//add w9, w9, w0
+	add x9, x9, x0
+	//lsr w9, w9, #1
+	lsr x9, x9, #1
+	//str w9, [x1, #GenGC_HDRMAJOR1] // update histories
+	str x9, [x1, #GenGC_HDRMAJOR1] // update histories
+	//str w0, [x1, #GenGC_HDRMAJOR0]
+	str x0, [x1, #GenGC_HDRMAJOR0]
+	//ldr w9, [x1, #GenGC_HDRL3] // find ratio of the old area
+	ldr x9, [x1, #GenGC_HDRL3] // find ratio of the old area
+	//ldr w12, [x1, #GenGC_HDRL0]
+	ldr x12, [x1, #GenGC_HDRL0]
+	//sub w9, w9, w12
+	sub x9, x9, x12
+	//lsr w9, w9, #GenGC_OLDRATIO
+	lsr x9, x9, #GenGC_OLDRATIO
+	//add w9, w12, w9
+	add x9, x12, x9
+	//ldr w12, [x1, #GenGC_HDRL1]
+	ldr x12, [x1, #GenGC_HDRL1]
+	//sub w12, w12, w9
+	sub x12, x12, x9
+	//lsl w12, w12, #GenGC_OLDRATIO // amount to expand in $t0
+	lsl x12, x12, #GenGC_OLDRATIO // amount to expand in $t0
+	//ldr w9, [x1, #GenGC_HDRL3] // load L3
+	ldr x9, [x1, #GenGC_HDRL3] // load L3
+	//ldr w10, [x1, #GenGC_HDRL1] // load L1
+	ldr x10, [x1, #GenGC_HDRL1] // load L1
+	//sub w10, w9, w10
+	sub x10, x9, x10
+	//lsr w10, w10, #1
+	lsr x10, x10, #1
+	//ldr w11, =0xfffffffc
+	ldr w11, =0xfffffffffffffff8
+	//and w10, w10, w11
+	and x10, x10, x11
+	//sub w9, w9, w10 // reserve/work barrier
+	sub x9, x9, x10 // reserve/work barrier
+	//ldr w10, [sp, #8] // restore size
+	ldr x10, [sp, #8] // restore size
+	//add w9, w9, w10
+	add x9, x9, x10
+	//ldr w10, [x1, #GenGC_HDRL3] // load L3
+	ldr x10, [x1, #GenGC_HDRL3] // load L3
+	//sub w9, w9, w10 // test allocation
+	sub x9, x9, x10 // test allocation
+	//add w9, w9, #4 // adjust for round off errors
+	add x9, x9, #4 // adjust for round off errors
+	//lsl w9, w9, #1 // need to allocate $t1 memory
+	lsl x9, x9, #1 // need to allocate $t1 memory
+	//cmp w9, w12
+	cmp x9, x12
 	b.lt _GenGC_Collect_enough // put max of $t0, $t1 in $t0
-	mov w12, w9
+	//mov w12, w9
+	mov x12, x9
 _GenGC_Collect_enough:
-	cmp w12, wzr
+	//cmp w12, wzr
+	cmp x12, xzr
 	b.le _GenGC_Collect_setL2 // no need to expand
-	mov w9, #1 // put 1 in $t1
-	lsl w9, w9, #GenGC_HEAPEXPGRAN // get granularity of expansion
-	add w9, w9, #-1 // align to granularity
-	add w12, w12, w9
-	mvn w9, w9
-	and w12, w12, w9 // total memory needed
-	ldr w9, [x1, #GenGC_HDRL3] // load L3
-	ldr w9, [x1, #GenGC_HDRL4] // load L4
-	sub w9, w10, w9
-	sub w10, w12, w9 // actual amount to allocate
-	cmp w10, wzr
+	//mov w9, #1 // put 1 in $t1
+	mov x9, #1 // put 1 in $t1
+	//lsl w9, w9, #GenGC_HEAPEXPGRAN // get granularity of expansion
+	lsl x9, x9, #GenGC_HEAPEXPGRAN // get granularity of expansion
+	//add w9, w9, #-1 // align to granularity
+	add x9, x9, #-1 // align to granularity
+	//add w12, w12, w9
+	add x12, x12, x9
+	//mvn w9, w9
+	mvn x9, x9
+	//and w12, w12, w9 // total memory needed
+	and x12, x12, x9 // total memory needed
+	//ldr w9, [x1, #GenGC_HDRL3] // load L3
+	ldr x9, [x1, #GenGC_HDRL3] // load L3
+	//ldr w9, [x1, #GenGC_HDRL4] // load L4
+	ldr x9, [x1, #GenGC_HDRL4] // load L4
+	//sub w9, w10, w9
+	sub x9, x10, x9
+	//sub w10, w12, w9 // actual amount to allocate
+	sub x10, x12, x9 // actual amount to allocate
+	//cmp w10, wzr
+	cmp x10, xzr
 	b.gt _GenGC_Collect_getmem // check if really need to allocate
 _GenGC_Collect_xfermem:
-	ldr w26, [x1, #GenGC_HDRL3] // load L3
-	add w26, w26, w12 // expand by $t0, set $s7
-	str w26, [x1, #GenGC_HDRL3] // save L3
+	//ldr w26, [x1, #GenGC_HDRL3] // load L3
+	//add w26, w26, w12 // expand by $t0, set $s7
+	//str w26, [x1, #GenGC_HDRL3] // save L3
+	ldr x26, [x1, #GenGC_HDRL3] // load L3
+	add x26, x26, x12 // expand by $t0, set $s7
+	str x26, [x1, #GenGC_HDRL3] // save L3
 	b _GenGC_Collect_findL2
 _GenGC_Collect_getmem:
-	mov w0, w10 // set the size to expand the heap
+	//mov w0, w10 // set the size to expand the heap
+	//bl sbrk
+	//mov w0, #0 // get new end of heap in $v0
+	//bl sbrk
+	//str w0, [x1, #GenGC_HDRL4] // save L4
+	//str w0, [x1, #GenGC_HDRL3] // save L3
+	//mov w26, w0 // set $s7
+	mov x0, x10 // set the size to expand the heap
 	bl sbrk
-	mov w0, #0 // get new end of heap in $v0
+	mov x0, #0 // get new end of heap in $v0
 	bl sbrk
-	str w0, [x1, #GenGC_HDRL4] // save L4
-	str w0, [x1, #GenGC_HDRL3] // save L3
-	mov w26, w0 // set $s7
+	str x0, [x1, #GenGC_HDRL4] // save L4
+	str x0, [x1, #GenGC_HDRL3] // save L3
+	mov x26, x0 // set $s7
 	b _GenGC_Collect_findL2
 _GenGC_Collect_setL2:
-	ldr w26, [x1, #GenGC_HDRL3] // load L3
+	//ldr w26, [x1, #GenGC_HDRL3] // load L3
+	ldr x26, [x1, #GenGC_HDRL3] // load L3
 _GenGC_Collect_findL2:
-	ldr w9, [x1, #GenGC_HDRL1] // load L1
-	sub w9, w26, w9
-	lsr w9, w9, #1
-	ldr w12, =0xfffffffc
-	and w9, w9, w12
-	sub w27, w26, w9 // reserve/work barrier
-	str w27, [x1, #GenGC_HDRL2] // save L2
+	//ldr w9, [x1, #GenGC_HDRL1] // load L1
+	//sub w9, w26, w9
+	//lsr w9, w9, #1
+	//ldr w12, =0xfffffffc
+	//and w9, w9, w12
+	//sub w27, w26, w9 // reserve/work barrier
+	//str w27, [x1, #GenGC_HDRL2] // save L2
+	ldr x9, [x1, #GenGC_HDRL1] // load L1
+	sub x9, x26, x9
+	lsr x9, x9, #1
+	ldr x12, =0xfffffffffffffff8
+	and x9, x9, x12
+	sub x27, x26, x9 // reserve/work barrier
+	str x27, [x1, #GenGC_HDRL2] // save L2
 _GenGC_Collect_done:
 // Clear new generation to catch missing pointers
-	mov w12, w27
+	//mov w12, w27
+	mov x12, x27
 _GenGC_Clear_loop:
-	str wzr, [x12, #0]
- 	add w12, w12, #4
-	cmp w12, w26
+	//str wzr, [x12, #0]
+ 	//add w12, w12, #4
+	//cmp w12, w26
+	str xzr, [x12, #0]
+ 	add x12, x12, #4
+	cmp x12, x26
 	b.lt _GenGC_Clear_loop
 	
-	str w1, [sp, #8] // restore size
+	//str w1, [sp, #8] // restore size
+	str x1, [sp, #8] // restore size
 	str w30, [sp, #24] // restore return address
  	add sp, sp, #24
 	ret // return
 
 	.globl _GenGC_ChkCopy
 _GenGC_ChkCopy:
- 	cmp w0, w1
+ 	//cmp w0, w1
+	cmp x0, x1
 	b.lt _GenGC_ChkCopy_done // check bounds
-	cmp w0, w2
+	//cmp w0, w2
+	cmp x0, x2
 	b.ge _GenGC_ChkCopy_done
-	and w10, w0, #1 // check if odd
-	cmp w10, wzr
+	//and w10, w0, #1 // check if odd
+	and x10, x0, #1 // check if odd
+	//cmp w10, wzr
+	cmp x10, xzr
 	b.ne _GenGC_ChkCopy_done
 	mov w10, #-1
 	ldr w9, [x0, #obj_eyecatch] // check eyecatcher
@@ -1278,23 +1420,37 @@ _GenGC_MinorC:
 	add sp, sp, #-40
  	str w30, [sp, #40] // save return address
 	adr x12, heap_start
-	ldr w1, [x12, #GenGC_HDRL2] // set lower bound to work area
-	mov w2, w26 // set upper bound for ChkCopy
-	ldr w27, [x12, #GenGC_HDRL1] // set $gp into reserve area
-	str w0, [sp, #32] // save stack end
-	ldr w12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
-	mov w9, w0 // set $t1 to stack end
-	cmp w12, w9
+	//ldr w1, [x12, #GenGC_HDRL2] // set lower bound to work area
+	ldr x1, [x12, #GenGC_HDRL2] // set lower bound to work area
+	//mov w2, w26 // set upper bound for ChkCopy
+	mov x2, x26 // set upper bound for ChkCopy
+	//ldr w27, [x12, #GenGC_HDRL1] // set $gp into reserve area
+	ldr x27, [x12, #GenGC_HDRL1] // set $gp into reserve area
+	//str w0, [sp, #32] // save stack end
+	str x0, [sp, #32] // save stack end
+	//ldr w12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
+	ldr x12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
+	//mov w9, w0 // set $t1 to stack end
+	mov x9, x0 // set $t1 to stack end
+	//cmp w12, w9
+	cmp x12, x9
 	b.le _GenGC_MinorC_stackend // check for empty stack
 _GenGC_MinorC_stackloop: // $t1 stack end, $t0 index
- 	add w12, w12, #-4 // update index
-	str w12, [sp, #24] // save stack index
-	ldr w0, [x12, #4] // get stack item
+ 	//add w12, w12, #-4 // update index
+	add x12, x12, #-8 // update index
+	//str w12, [sp, #24] // save stack index
+	str x12, [sp, #24] // save stack index
+	//ldr w0, [x12, #4] // get stack item
+	ldr x0, [x12, #8] // get stack item
 	bl _GenGC_ChkCopy // check and copy
-	ldr w12, [sp, #24] // load stack index
-	str w0, [x12, #4]
-	ldr w9, [sp, #32] // restore stack end
-	cmp w12, w9 // loop
+	//ldr w12, [sp, #24] // load stack index
+	ldr x12, [sp, #24] // load stack index
+	//str w0, [x12, #4]
+	str x0, [x12, #8]
+	//ldr w9, [sp, #32] // restore stack end
+	ldr x9, [sp, #32] // restore stack end
+	//cmp w12, w9 // loop
+	cmp x12, x9 // loop
 	b.gt _GenGC_MinorC_stackloop
 _GenGC_MinorC_stackend:
  	adr x12, heap_start
@@ -1400,31 +1556,47 @@ _GenGC_MinorC_reg31:
 	mov w30, w0 // update register
 _GenGC_MinorC_regend:
 	adr x12, heap_start
-	ldr w11, [x12, #GenGC_HDRL0] // lower limit of old area
- 	ldr w13, [x12, #GenGC_HDRL1] // upper limit of old area
-	ldr w12, [x12, #GenGC_HDRL3] // get L3
-	str w12, [sp, #32] // save index limit
-	cmp w26, w12
+	//ldr w11, [x12, #GenGC_HDRL0] // lower limit of old area
+	ldr x11, [x12, #GenGC_HDRL0] // lower limit of old area
+ 	//ldr w13, [x12, #GenGC_HDRL1] // upper limit of old area
+	ldr x13, [x12, #GenGC_HDRL1] // upper limit of old area
+	//ldr w12, [x12, #GenGC_HDRL3] // get L3
+	ldr x12, [x12, #GenGC_HDRL3] // get L3
+	//str w12, [sp, #32] // save index limit
+	str x12, [sp, #32] // save index limit
+	//cmp w26, w12
+	cmp x26, x12
 	b.ge _GenGC_MinorC_assnend // check for no assignments
 _GenGC_MinorC_assnloop:				# $s7 index, $t0 limit
- 	ldr w0, [x26, #0] // get table entry
-	cmp w0, w11
+ 	//ldr w0, [x26, #0] // get table entry
+	ldr x0, [x26, #0] // get table entry
+	//cmp w0, w11
+	cmp x0, x11
 	b.lt _GenGC_MinorC_assnnext // must point into old area
-	cmp w0, w13
+	//cmp w0, w13
+	cmp x0, x13
 	b.ge _GenGC_MinorC_assnnext
-	ldr w0, [x0, #0] // get pointer to check
+	//ldr w0, [x0, #0] // get pointer to check
+	ldr x0, [x0, #0] // get pointer to check
 	bl _GenGC_ChkCopy // check and copy
-	ldr w12, [x26, #0]
-	str w0, [x12, #0] // update pointer
-	ldr w12, [sp, #32] // restore index limit
+	//ldr w12, [x26, #0]
+	ldr x12, [x26, #0]
+	//str w0, [x12, #0] // update pointer
+	str x0, [x12, #0] // update pointer
+	//ldr w12, [sp, #32] // restore index limit
+	ldr x12, [sp, #32] // restore index limit
 _GenGC_MinorC_assnnext:
- 	add w26, w26, #4 // update index
-	cmp w26, w12
+ 	//add w26, w26, #4 // update index
+	add x26, x26, #8 // update index
+	//cmp w26, w12
+	cmp x26, x12
 	b.lt _GenGC_MinorC_assnloop // loop
 _GenGC_MinorC_assnend:
  	adr x12, heap_start
-	ldr w12, [x12, #GenGC_HDRL1] // start of reserve area
-	cmp w12, w27
+	//ldr w12, [x12, #GenGC_HDRL1] // start of reserve area
+	ldr x12, [x12, #GenGC_HDRL1] // start of reserve area
+	//cmp w12, w27
+	cmp x12, x27
 	b.ge _GenGC_MinorC_heapend // check for no objects
 _GenGC_MinorC_heaploop:				# $t0: index, $gp: limit
  	add w12, w12, #4 // skip over eyecatcher
@@ -1487,9 +1659,12 @@ _GenGC_MinorC_nextobj:
  	//blt	$t0 $gp _GenGC_MinorC_heaploop	# loop
 _GenGC_MinorC_heapend:
  	adr x12, heap_start
-	str w27, [x12, #GenGC_HDRL2] // set L2 to $gp
-	ldr w0, [x12, #GenGC_HDRL1]
-	sub w0, w27, w0 // find size after collection
+	//str w27, [x12, #GenGC_HDRL2] // set L2 to $gp
+	str x27, [x12, #GenGC_HDRL2] // set L2 to $gp
+	//ldr w0, [x12, #GenGC_HDRL1]
+	ldr x0, [x12, #GenGC_HDRL1]
+	//sub w0, w27, w0 // find size after collection
+	sub x0, x27, x0 // find size after collection
 	ldr w30, [sp, #40] // restore return address
 	add sp, sp, #40
 	ret // return
@@ -1501,12 +1676,16 @@ _GenGC_MinorC_error:
 
  	.globl _GenGC_OfsCopy
 _GenGC_OfsCopy:
-    cmp w0, w1
+    //cmp w0, w1
+	cmp x0, x1
 	b.lt _GenGC_OfsCopy_done // check lower bound
-	cmp w0, w7
+	//cmp w0, w7
+	cmp x0, x7
 	b.ge _GenGC_OfsCopy_done // check upper bound
- 	and w10, w0, #1 // check if odd
-	cmp w10, wzr
+ 	//and w10, w0, #1 // check if odd
+	and x10, x0, #1 // check if odd
+	//cmp w10, wzr
+	cmp x10, xzr
 	b.ne _GenGC_OfsCopy_done
 	mov w10, #-1
 	ldr w9, [x0, #obj_eyecatch] // check eyecatcher
@@ -1515,10 +1694,13 @@ _GenGC_OfsCopy:
 	ldr w9, [x0, #obj_tag] // check object tag
 	cmp w10, w9
 	b.eq _GenGC_OfsCopy_done
-	cmp w0, w2
+	//cmp w0, w2
+	cmp x0, x2
 	b.lt _GenGC_OfsCopy_old
-	sub w6, w1, w2 // compute offset
-	add w0, w0, w6 // apply pointer offset
+	//sub w6, w1, w2 // compute offset
+	sub x6, x1, x2 // compute offset
+	//add w0, w0, w6 // apply pointer offset
+	add x0, x0, x6 // apply pointer offset
 	ret // return
 _GenGC_OfsCopy_old:
 	ldr w9, [x1, #obj_size] // get size of object
@@ -1528,20 +1710,30 @@ _GenGC_OfsCopy_old:
  	mov w12, w0 // save pointer to old object in $t0
 	add w6, w27, w9 // test allocation
 	add w6, w6, #4
-	cmp w6, w26
+	//cmp w6, w26
+	cmp x6, x26
 	b.lt _GenGC_OfsCopy_memok
-	sub w0, w6, w26 // amount to expand minus 1
+	//sub w0, w6, w26 // amount to expand minus 1
+	sub x0, x6, x26 // amount to expand minus 1
 	mov w6, #1
-	lsl w6, w6, #GenGC_HEAPEXPGRAN
-	add w0, w0, w6
-	add w6, w6, #-1
-	mvn w6, w6 // get grain mask
-	and w0, w0, w6 // align to grain size
+	//lsl w6, w6, #GenGC_HEAPEXPGRAN
+	lsl x6, x6, #GenGC_HEAPEXPGRAN
+	//add w0, w0, w6
+	add x0, x0, x6
+	//add w6, w6, #-1
+	add x6, x6, #-1
+	//mvn w6, w6 // get grain mask
+	mvn x6, x6 // get grain mask
+	//and w0, w0, w6 // align to grain size
+	and x0, x0, x6 // align to grain size
 	bl sbrk // expand heap
-	mov w0, #0 // get end of heap in $v0
+	//mov w0, #0 // get end of heap in $v0
+	mov x0, #0 // get end of heap in $v0
 	bl sbrk
-	mov w6, w0
-	mov w26, w6 // save heap end in $s7
+	//mov w6, w0
+	mov x6, x0
+	//mov w26, w6 // save heap end in $s7
+	mov x26, x6 // save heap end in $s7
 	mov w0, w12 // restore pointer to old object in $a0
 _GenGC_OfsCopy_memok:
  	add w27, w27, #4 // allocate memory for eyecatcher
@@ -1571,24 +1763,39 @@ _GenGC_MajorC:
 	add sp, sp, #-40
 	str w30, [sp, #40] // save return address
 	adr x12, heap_start
- 	ldr w26, [x12, #GenGC_HDRL4] // limit pointer for collection
-	ldr w27, [x12, #GenGC_HDRL2] // allocation pointer for collection
-	ldr w1, [x12, #GenGC_HDRL0] // set inputs for OfsCopy
-	ldr w2, [x12, #GenGC_HDRL1]
-	ldr w7, [x12, #GenGC_HDRL2]
-	str w0, [sp, #32] // save stack end
-	ldr w12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
-	mov w9, w0 // set $t1 to stack end
-	cmp w12, w9
+ 	//ldr w26, [x12, #GenGC_HDRL4] // limit pointer for collection
+	ldr x26, [x12, #GenGC_HDRL4] // limit pointer for collection
+	//ldr w27, [x12, #GenGC_HDRL2] // allocation pointer for collection
+	ldr x27, [x12, #GenGC_HDRL2] // allocation pointer for collection
+	//ldr w1, [x12, #GenGC_HDRL0] // set inputs for OfsCopy
+	ldr x1, [x12, #GenGC_HDRL0] // set inputs for OfsCopy
+	//ldr w2, [x12, #GenGC_HDRL1]
+	ldr x2, [x12, #GenGC_HDRL1]
+	//ldr w7, [x12, #GenGC_HDRL2]
+	ldr x7, [x12, #GenGC_HDRL2]
+	//str w0, [sp, #32] // save stack end
+	str x0, [sp, #32] // save stack end
+	//ldr w12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
+	ldr x12, [x12, #GenGC_HDRSTK] // set $t0 to stack start
+	//mov w9, w0 // set $t1 to stack end
+	mov x9, x0 // set $t1 to stack end
+	//cmp w12, w9
+	cmp x12, x9
 	b.le _GenGC_MajorC_stackend // check for empty stack
 _GenGC_MajorC_stackloop: 			# $t1 stack end, $t0 index
- 	add w12, w12, #-4 // update index
-	str w12, [sp, #12] // save stack index
-	ldr w0, [x12, #4] // get stack item
+ 	//add w12, w12, #-4 // update index
+	add w12, w12, #-8 // update index
+	//str w12, [sp, #12] // save stack index
+	str x12, [sp, #24] // save stack index
+	//ldr w0, [x12, #4] // get stack item
+	ldr x0, [x12, #8] // get stack item
 	bl _GenGC_OfsCopy // check and copy
-	ldr w12, [sp, #24] // load stack index
-	str w0, [x12, #4]
-	ldr w9, [sp, #32] // restore stack end
+	//ldr w12, [sp, #24] // load stack index
+	ldr x12, [sp, #24] // load stack index
+	//str w0, [x12, #4]
+	str x0, [x12, #8]
+	//ldr w9, [sp, #32] // restore stack end
+	ldr x9, [sp, #32] // restore stack end
 	cmp w12, w9
 	b.gt _GenGC_MajorC_stackloop // loop
 _GenGC_MajorC_stackend:
@@ -1695,8 +1902,10 @@ _GenGC_MajorC_reg31:
 	mov w30, w0 // update register
 _GenGC_MajorC_regend:
 	adr x12, heap_start
- 	ldr w12, [x12, #GenGC_HDRL1] // start of X area
-	cmp w12, w27
+ 	//ldr w12, [x12, #GenGC_HDRL1] // start of X area
+	ldr x12, [x12, #GenGC_HDRL1] // start of X area
+	//cmp w12, w27
+	cmp x12, x27
 	b.ge _GenGC_MajorC_heapend // check for no objects
 _GenGC_MajorC_heaploop:				# $t0: index, $gp: limit
  	add w12, w12, #4 // skip over eyecatcher
@@ -1757,26 +1966,42 @@ _GenGC_MajorC_nextobj:
 	b.lt _GenGC_MajorC_heaploop // loop
 _GenGC_MajorC_heapend:
 	adr x12, heap_start
- 	ldr w0, [x12, #GenGC_HDRL2] // get end of collection
-	sub w0, w27, w0 // get length after collection
-	ldr w9, [x12, #GenGC_HDRL0] // get L0
-	ldr w10, [x12, #GenGC_HDRL1] // get L1
-	cmp w10, w27
+ 	//ldr w0, [x12, #GenGC_HDRL2] // get end of collection
+	ldr x0, [x12, #GenGC_HDRL2] // get end of collection
+	//sub w0, w27, w0 // get length after collection
+	sub x0, x27, x0 // get length after collection
+	//ldr w9, [x12, #GenGC_HDRL0] // get L0
+	ldr x9, [x12, #GenGC_HDRL0] // get L0
+	//ldr w10, [x12, #GenGC_HDRL1] // get L1
+	ldr x10, [x12, #GenGC_HDRL1] // get L1
+	//cmp w10, w27
+	cmp x10, x27
 	b.ge _GenGC_MajorC_bcpyend // test for empty copy
 _GenGC_MajorC_bcpyloop:				# $t2 index, $gp limit, $t1 dest
- 	ldr w6, [x10, #0] // copy
-	str w6, [x9, #0] 
-	add w10, w10, #4 // update each index
-	add w9, w9, #4
-	cmp w10, w27
+ 	//ldr w6, [x10, #0] // copy
+	ldr x6, [x10, #0] // copy
+	//str w6, [x9, #0]
+	str x6, [x9, #0] 
+	//add w10, w10, #4 // update each index
+	add x10, x10, #8 // update each index
+	//add w9, w9, #4
+	add x9, x9, #8
+	//cmp w10, w27
+	cmp x10, x27
 	b.ne _GenGC_MajorC_bcpyloop // loop
 _GenGC_MajorC_bcpyend:
- 	str w26, [x12, #GenGC_HDRL4] // save end of heap
-	ldr w9, [x12, #GenGC_HDRL0] // get L0
-	ldr w10, [x12, #GenGC_HDRL1] // get L1
-	sub w9, w10, w9 // find offset of block copy
-	sub w27, w27, w9 // find end of old area
-	str w27, [x12, #GenGC_HDRL1] // save end of old area
+ 	//str w26, [x12, #GenGC_HDRL4] // save end of heap
+	str x26, [x12, #GenGC_HDRL4] // save end of heap
+	//ldr w9, [x12, #GenGC_HDRL0] // get L0
+	ldr x9, [x12, #GenGC_HDRL0] // get L0
+	//ldr w10, [x12, #GenGC_HDRL1] // get L1
+	ldr x10, [x12, #GenGC_HDRL1] // get L1
+	//sub w9, w10, w9 // find offset of block copy
+	sub x9, x10, x9 // find offset of block copy
+	//sub w27, w27, w9 // find end of old area
+	sub x27, x27, x9 // find end of old area
+	//str w27, [x12, #GenGC_HDRL1] // save end of old area
+	str x27, [x12, #GenGC_HDRL1] // save end of old area
 	ldr w30, [sp, #40] // restore return address
 	add sp, sp, #40
 	ret // return
