@@ -1446,7 +1446,7 @@ void assign_class::code(ostream &s, Environment &env) {
         emit_store_aarch64(WACC, offset, SP, s);
 
         if (cgen_Memmgr == GC_GENGC) {
-            emit_addiu_aarch64(WA1, SP, 4 * 2 * offset, s);
+            emit_addiu_aarch64(A1, SP, 4 * 2 * offset, s);
             emit_gc_assign(s);
         }
         return;
@@ -1458,7 +1458,7 @@ void assign_class::code(ostream &s, Environment &env) {
         emit_store_aarch64(WACC, offset, FP, s);
 
         if (cgen_Memmgr == GC_GENGC) {
-            emit_addiu_aarch64(WA1, FP, 4 * 2 * offset, s);
+            emit_addiu_aarch64(A1, FP, 4 * 2 * offset, s);
             emit_gc_assign(s);
         }
         return;
