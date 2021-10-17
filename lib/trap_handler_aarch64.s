@@ -1081,7 +1081,7 @@ _MemMgr_Test_false:
 	ldr w0, =_GenGC_Init_msg
 	bl puts
 _GenGC_Init_end:
-    ldr w30, [sp, #8]
+    ldr w30, [sp, #0]
 	add sp, sp, #8
 	ret // return
 _GenGC_Init_error:
@@ -1445,16 +1445,19 @@ _GenGC_MinorC:
 	b.le _GenGC_MinorC_stackend // check for empty stack
 _GenGC_MinorC_stackloop: // $t1 stack end, $t0 index
  	//add w12, w12, #-4 // update index
-	add x12, x12, #-4 // update index
+	//add x12, x12, #-4 // update index
+	add x12, x12, #-8 // update index
 	//str w12, [sp, #24] // save stack index
 	str x12, [sp, #24] // save stack index
-	ldr w0, [x12, #4] // get stack item
+	//ldr w0, [x12, #4] // get stack item
 	//ldr x0, [x12, #4] // get stack item
+	ldr w0, [x12, #8] // get stack item
 	bl _GenGC_ChkCopy // check and copy
 	//ldr w12, [sp, #24] // load stack index
 	ldr x12, [sp, #24] // load stack index
-	str w0, [x12, #4]
+	//str w0, [x12, #4]
 	//str x0, [x12, #4]
+	str w0, [x12, #8]
 	//ldr w9, [sp, #32] // restore stack end
 	ldr x9, [sp, #32] // restore stack end
 	//cmp w12, w9 // loop
@@ -1790,16 +1793,19 @@ _GenGC_MajorC:
 	b.le _GenGC_MajorC_stackend // check for empty stack
 _GenGC_MajorC_stackloop: 			# $t1 stack end, $t0 index
  	//add w12, w12, #-4 // update index
-	add x12, x12, #-4 // update index
+	//add x12, x12, #-4 // update index
+	add x12, x12, #-8 // update index
 	//str w12, [sp, #24] // save stack index
 	str x12, [sp, #24] // save stack index
-	ldr w0, [x12, #4] // get stack item
+	//ldr w0, [x12, #4] // get stack item
 	//ldr x0, [x12, #4] // get stack item
+	ldr w0, [x12, #8] // get stack item
 	bl _GenGC_OfsCopy // check and copy
 	//ldr w12, [sp, #24] // load stack index
 	ldr x12, [sp, #24] // load stack index
-	str w0, [x12, #4]
+	//str w0, [x12, #4]
 	//str x0, [x12, #4]
+	str w0, [x12, #8]
 	//ldr w9, [sp, #32] // restore stack end
 	ldr x9, [sp, #32] // restore stack end
 	//cmp w12, w9
