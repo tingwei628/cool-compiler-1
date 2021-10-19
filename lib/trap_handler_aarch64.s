@@ -234,23 +234,25 @@ _fmt_int_size=.-_fmt_int_array
 .equ array_maxsize_read_int, 12 // char array size for reading int
 
 //.equ GenGC_HDRSIZE, 44				// size of GenGC header
-.equ GenGC_HDRSIZE, 64				// size of GenGC header
+//.equ GenGC_HDRSIZE, 64				// size of GenGC header
+.equ GenGC_HDRSIZE, 48				// size of GenGC header
 .equ GenGC_HDRL0, 0					// pointers to GenGC areas
 .equ GenGC_HDRL1, 4
 .equ GenGC_HDRL2, 8
 .equ GenGC_HDRL3, 12
 .equ GenGC_HDRL4, 16
 .equ GenGC_HDRMAJOR0, 20				// history of major collections
-//.equ GenGC_HDRMAJOR1, 24
-.equ GenGC_HDRMAJOR1, 28
-//.equ GenGC_HDRMINOR0, 28				// history of minor collections
-.equ GenGC_HDRMINOR0, 36				// history of minor collections
-//.equ GenGC_HDRMINOR1, 32
-.equ GenGC_HDRMINOR1, 44
-//.equ GenGC_HDRSTK, 36					// start of stack
-.equ GenGC_HDRSTK, 52					// start of stack
+.equ GenGC_HDRMAJOR1, 24
+//.equ GenGC_HDRMAJOR1, 28
+.equ GenGC_HDRMINOR0, 28				// history of minor collections
+//.equ GenGC_HDRMINOR0, 36				// history of minor collections
+.equ GenGC_HDRMINOR1, 32
+//.equ GenGC_HDRMINOR1, 44
+.equ GenGC_HDRSTK, 36					// start of stack
+//.equ GenGC_HDRSTK, 52					// start of stack
 //.equ GenGC_HDRREG, 40					// current REG mask
-.equ GenGC_HDRREG, 60					// current REG mask
+//.equ GenGC_HDRREG, 60					// current REG mask
+.equ GenGC_HDRREG, 44					// current REG mask
 
 // .equ GenGC_HDRSIZE, 88				// size of GenGC header
 // .equ GenGC_HDRL0, 0					// pointers to GenGC areas
@@ -1053,14 +1055,14 @@ _GenGC_Init:
 	//str x2, [x12, #GenGC_HDRL3] // save end of work area
 	mov w26, w2 // set limit pointer
 	//mov x26, x2 // set limit pointer
-	//str wzr, [x12, #GenGC_HDRMAJOR0] // clear histories
-	str xzr, [x12, #GenGC_HDRMAJOR0] // clear histories
-	//str wzr, [x12, #GenGC_HDRMAJOR1]
-	str xzr, [x12, #GenGC_HDRMAJOR1]
-	//str wzr, [x12, #GenGC_HDRMINOR0]
-	str xzr, [x12, #GenGC_HDRMINOR0]
-	//str wzr, [x12, #GenGC_HDRMINOR1]
-	str xzr, [x12, #GenGC_HDRMINOR1]
+	str wzr, [x12, #GenGC_HDRMAJOR0] // clear histories
+	//str xzr, [x12, #GenGC_HDRMAJOR0] // clear histories
+	str wzr, [x12, #GenGC_HDRMAJOR1]
+	//str xzr, [x12, #GenGC_HDRMAJOR1]
+	str wzr, [x12, #GenGC_HDRMINOR0]
+	//str xzr, [x12, #GenGC_HDRMINOR0]
+	str wzr, [x12, #GenGC_HDRMINOR1]
+	//str xzr, [x12, #GenGC_HDRMINOR1]
 	//str w0, [x12, #GenGC_HDRSTK] // save stack start
 	str x0, [x12, #GenGC_HDRSTK] // save stack start
 	str w1, [x12, #GenGC_HDRREG] // save register mask
@@ -1139,41 +1141,41 @@ _GenGC_Collect:
 	ldr x0, [sp, #16] // restore stack end
 	bl _GenGC_MinorC // minor collection
 	adr x1, heap_start
-	//ldr w9, [x1, #GenGC_HDRMINOR1]
-	ldr x9, [x1, #GenGC_HDRMINOR1]
-	//add w9, w9, w0
-	add x9, x9, x0
-	//lsr w9, w9, #1
-	lsr x9, x9, #1
+	ldr w9, [x1, #GenGC_HDRMINOR1]
+	//ldr x9, [x1, #GenGC_HDRMINOR1]
+	add w9, w9, w0
+	//add x9, x9, x0
+	lsr w9, w9, #1
+	//lsr x9, x9, #1
 
-	//str w9, [x1, #GenGC_HDRMINOR1] // update histories
-	str x9, [x1, #GenGC_HDRMINOR1] // update histories
-    //str w0, [x1, #GenGC_HDRMINOR0]
-	str x0, [x1, #GenGC_HDRMINOR0]
-	//mov w12, w9 // set $t0 to max of minor
-	mov x12, x9 // set $t0 to max of minor
-	//cmp w9, w0
-	cmp x9, x0
+	str w9, [x1, #GenGC_HDRMINOR1] // update histories
+	//str x9, [x1, #GenGC_HDRMINOR1] // update histories
+    str w0, [x1, #GenGC_HDRMINOR0]
+	//str x0, [x1, #GenGC_HDRMINOR0]
+	mov w12, w9 // set $t0 to max of minor
+	//mov x12, x9 // set $t0 to max of minor
+	cmp w9, w0
+	//cmp x9, x0
 	b.gt _GenGC_Collect_maxmaj
-	//mov w12, w0
-	mov x12, x0
+	mov w12, w0
+	//mov x12, x0
 _GenGC_Collect_maxmaj:
-	//ldr w9, [x1, #GenGC_HDRMAJOR0] // set $t1 to max of major
-	ldr x9, [x1, #GenGC_HDRMAJOR0] // set $t1 to max of major
-	//ldr w10, [x1, #GenGC_HDRMAJOR1]
-	ldr x10, [x1, #GenGC_HDRMAJOR1]
-	//cmp w9, w10
-	cmp x9, x10
+	ldr w9, [x1, #GenGC_HDRMAJOR0] // set $t1 to max of major
+	//ldr x9, [x1, #GenGC_HDRMAJOR0] // set $t1 to max of major
+	ldr w10, [x1, #GenGC_HDRMAJOR1]
+	//ldr x10, [x1, #GenGC_HDRMAJOR1]
+	cmp w9, w10
+	//cmp x9, x10
 	b.gt _GenGC_Collect_maxdef
-	//mov w9, w10
-	mov x9, x10
+	mov w9, w10
+	//mov x9, x10
 _GenGC_Collect_maxdef:
 	ldr w10, [x1, #GenGC_HDRL3]
 	//ldr x10, [x1, #GenGC_HDRL3]
-	//sub w12, w10, w12 // set $t0 to L3-$t0-$t1
-	sub x12, x10, x12 // set $t0 to L3-$t0-$t1
-	//sub w12, w12, w9
-	sub x12, x12, x9
+	sub w12, w10, w12 // set $t0 to L3-$t0-$t1
+	//sub x12, x10, x12 // set $t0 to L3-$t0-$t1
+	sub w12, w12, w9
+	//sub x12, x12, x9
 	ldr w9, [x1, #GenGC_HDRL0] // set $t1 to L3-(L3-L0)/2
 	//ldr x9, [x1, #GenGC_HDRL0] // set $t1 to L3-(L3-L0)/2
 	sub w9, w10, w9
@@ -1233,16 +1235,16 @@ _GenGC_Collect_major:
 	ldr x0, [sp, #16] // restore stack end
 	bl _GenGC_MajorC // major collection
 	adr x1, heap_start
-	//ldr w9, [x1, #GenGC_HDRMAJOR1]
-	ldr x9, [x1, #GenGC_HDRMAJOR1]
-	//add w9, w9, w0
-	add x9, x9, x0
-	//lsr w9, w9, #1
-	lsr x9, x9, #1
-	//str w9, [x1, #GenGC_HDRMAJOR1] // update histories
-	str x9, [x1, #GenGC_HDRMAJOR1] // update histories
-	//str w0, [x1, #GenGC_HDRMAJOR0]
-	str x0, [x1, #GenGC_HDRMAJOR0]
+	ldr w9, [x1, #GenGC_HDRMAJOR1]
+	//ldr x9, [x1, #GenGC_HDRMAJOR1]
+	add w9, w9, w0
+	//add x9, x9, x0
+	lsr w9, w9, #1
+	//lsr x9, x9, #1
+	str w9, [x1, #GenGC_HDRMAJOR1] // update histories
+	//str x9, [x1, #GenGC_HDRMAJOR1] // update histories
+	str w0, [x1, #GenGC_HDRMAJOR0]
+	//str x0, [x1, #GenGC_HDRMAJOR0]
 	ldr w9, [x1, #GenGC_HDRL3] // find ratio of the old area
 	//ldr x9, [x1, #GenGC_HDRL3] // find ratio of the old area
 	ldr w12, [x1, #GenGC_HDRL0]
@@ -1445,19 +1447,19 @@ _GenGC_MinorC:
 	b.le _GenGC_MinorC_stackend // check for empty stack
 _GenGC_MinorC_stackloop: // $t1 stack end, $t0 index
  	//add w12, w12, #-4 // update index
-	//add x12, x12, #-4 // update index
-	add x12, x12, #-8 // update index
+	add x12, x12, #-4 // update index
+	//add x12, x12, #-8 // update index
 	//str w12, [sp, #24] // save stack index
 	str x12, [sp, #24] // save stack index
-	//ldr w0, [x12, #4] // get stack item
+	ldr w0, [x12, #4] // get stack item
 	//ldr x0, [x12, #4] // get stack item
-	ldr w0, [x12, #8] // get stack item
+	//ldr w0, [x12, #8] // get stack item
 	bl _GenGC_ChkCopy // check and copy
 	//ldr w12, [sp, #24] // load stack index
 	ldr x12, [sp, #24] // load stack index
-	//str w0, [x12, #4]
+	str w0, [x12, #4]
 	//str x0, [x12, #4]
-	str w0, [x12, #8]
+	//str w0, [x12, #8]
 	//ldr w9, [sp, #32] // restore stack end
 	ldr x9, [sp, #32] // restore stack end
 	//cmp w12, w9 // loop
@@ -1712,7 +1714,7 @@ _GenGC_OfsCopy:
 	//add x0, x0, x6 // apply pointer offset
 	ret // return
 _GenGC_OfsCopy_old:
-	ldr w9, [x1, #obj_size] // get size of object
+	ldr w9, [x0, #obj_size] // get size of object
 	lsl w9, w9, #2 // convert words to bytes
 	cmp w9, wzr 
 	b.eq _GenGC_OfsCopy_forward // if size = 0, get forwarding pointer
@@ -1760,7 +1762,7 @@ _GenGC_OfsCopy_loop:
 	str wzr, [x10, #obj_size] // set size to 0
 	sub w6, w1, w2 // compute offset
 	add w0, w0, w6 // apply pointer offset
-	str w0, [x12, #obj_disp] // save forwarding pointer
+	str w0, [x10, #obj_disp] // save forwarding pointer
 _GenGC_OfsCopy_done:
 	ret // return
 _GenGC_OfsCopy_forward:
@@ -1793,19 +1795,19 @@ _GenGC_MajorC:
 	b.le _GenGC_MajorC_stackend // check for empty stack
 _GenGC_MajorC_stackloop: 			# $t1 stack end, $t0 index
  	//add w12, w12, #-4 // update index
-	//add x12, x12, #-4 // update index
-	add x12, x12, #-8 // update index
+	add x12, x12, #-4 // update index
+	//add x12, x12, #-8 // update index
 	//str w12, [sp, #24] // save stack index
 	str x12, [sp, #24] // save stack index
-	//ldr w0, [x12, #4] // get stack item
+	ldr w0, [x12, #4] // get stack item
 	//ldr x0, [x12, #4] // get stack item
-	ldr w0, [x12, #8] // get stack item
+	//ldr w0, [x12, #8] // get stack item
 	bl _GenGC_OfsCopy // check and copy
 	//ldr w12, [sp, #24] // load stack index
 	ldr x12, [sp, #24] // load stack index
-	//str w0, [x12, #4]
+	str w0, [x12, #4]
 	//str x0, [x12, #4]
-	str w0, [x12, #8]
+	//str w0, [x12, #8]
 	//ldr w9, [sp, #32] // restore stack end
 	ldr x9, [sp, #32] // restore stack end
 	//cmp w12, w9
