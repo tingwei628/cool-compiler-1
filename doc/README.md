@@ -50,9 +50,9 @@ setarch `uname -m` -R ./[your_aarch64_exe] // temporarily disable ASLR for a par
 ```
 
 ## Change
-[emit.h]() \
+[emit.h](https://github.com/tingwei628/cool-compiler-1/blob/tingwei628-aarch64/assignments/PA5/emit.h) \
 [cgen.cc](https://github.com/tingwei628/cool-compiler-1/blob/tingwei628-aarch64/assignments/PA5/cgen.cc) \
-[trap_handler_aarch64.s](https://github.com/tingwei628/cool-compiler-1/blob/tingwei628-aarch64/lib/trap_handler_aarch64.s) (COOL runtime including GC)
+[trap_handler_aarch64.s](https://github.com/tingwei628/cool-compiler-1/blob/tingwei628-aarch64/lib/trap_handler_aarch64.s) (which is COOL runtime including GC)
 
 ## Known issues
 1. How to work under ASLR ? (fPIC?)
