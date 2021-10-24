@@ -1,6 +1,6 @@
 # COOL Compiler (aarch64)
 
-## Generate COOL `Lexer/Parser/Semant/Code generator` under aarch64
+## Generate COOL `Lexer/Parser/Semant/Cgen(Code generation)` under aarch64
 > via [dockcross: cross compile toolchain](https://github.com/dockcross/dockcross)
 
 Lexer
