@@ -49,6 +49,11 @@ ld as [your_aarch64.s] [lib/trap_handler_aarch64.s](https://github.com/tingwei62
 setarch `uname -m` -R ./[your_aarch64_exe] // temporarily disable ASLR for a particular program
 ```
 
+## Change
+[emit.h]()
+[cgen.cc]()
+[trap_handler_aarch64.s](https://github.com/tingwei628/cool-compiler-1/blob/tingwei628-aarch64/lib/trap_handler_aarch64.s)
+
 ## Known issues
 1. How to work under ASLR ? (fPIC?)
 2. `stdin`/`stdout` is hardcoded. (Type: `R_AARCH64_COPY`)
