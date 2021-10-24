@@ -1,6 +1,7 @@
-# [COOL](https://en.wikipedia.org/wiki/Cool_(programming_language))(Classroom Object Oriented Language) Compiler aarch64
 
-## Generate COOL `Lexer/Parser/Semant/Cgen(Code generation)` under aarch64
+# [COOL](https://en.wikipedia.org/wiki/Cool_(programming_language))(Classroom Object Oriented Language) Compiler under AArch64
+
+## Generate COOL `Lexer/Parser/Semant/Cgen(Code generation)` under AArch64
 > via [dockcross: cross compile toolchain](https://github.com/dockcross/dockcross)
 
 Lexer
@@ -28,7 +29,7 @@ make -f Makefile.Mac cgen ARCH=aarch64
 mv cgen cgen_aarch64
 ```
 
-## Compile .cl(COOL) into aarch64 assembly
+## Compile .cl(COOL) into AArch64 assembly
 > still under dockcross
 
 `./coolc [your_file.cl] --arch=aarch64` \
@@ -49,7 +50,7 @@ e.g. `./coolc ./examples/cells.cl -g --arch=aarch64`
 setarch `uname -m` -R ./[your_aarch64_exe] // temporarily disable ASLR for a particular program
 ```
 
-## Changes for aarch64
+## Changes for AArch64
 [emit.h](https://github.com/tingwei628/cool-compiler-1/blob/tingwei628-aarch64/assignments/PA5/emit.h) \
 [cgen.cc](https://github.com/tingwei628/cool-compiler-1/blob/tingwei628-aarch64/assignments/PA5/cgen.cc) \
 [trap_handler_aarch64.s](https://github.com/tingwei628/cool-compiler-1/blob/tingwei628-aarch64/lib/trap_handler_aarch64.s) (which is COOL runtime including GC)
