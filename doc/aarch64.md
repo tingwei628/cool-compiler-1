@@ -1,5 +1,5 @@
 
-# [COOL](https://en.wikipedia.org/wiki/Cool_(programming_language))(Classroom Object Oriented Language) Compiler under AArch64
+# [COOL](https://en.wikipedia.org/wiki/Cool_(programming_language)) Compiler under AArch64
 
 ## Generate COOL `Lexer/Parser/Semant/Cgen(Code generation)` under AArch64
 > via [dockcross: cross compile toolchain](https://github.com/dockcross/dockcross)
