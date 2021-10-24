@@ -38,7 +38,7 @@ e.g. `./coolc ./examples/cells.cl --arch=aarch64` // No GC
 note: `-g` is `gc` mode. \
 e.g. `./coolc ./examples/cells.cl -g --arch=aarch64`
 
-## Linked into executable
+## Link into executable
 
 `as [your_aarch64.s] -o [your_aarch64.o]` // assemble \
 `ld as [your_aarch64.s] lib/trap_handler_aarch64.s -o [your_aarch64_exe] -lc` // link
