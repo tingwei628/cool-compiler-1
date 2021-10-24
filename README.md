@@ -1,3 +1,5 @@
+## UPDATE: Add AArch64 support in Code Generation
+
 # Cool Compiler
 
 This repository contains my C++ implementation of a COOL compiler.
@@ -9,6 +11,7 @@ Among other things COOL is:
 * Object oriented supporting inheritance and dynamic dispatching.
 * Statically typed, strongly typed and type safe.
 * Garbage collected; memory is managed automatically.
+
 
 ## Assignment 1 - Lexical Analysis
 
