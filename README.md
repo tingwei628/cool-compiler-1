@@ -1,5 +1,3 @@
-## UPDATE: Add AArch64 support in Code Generation
-
 # Cool Compiler
 
 This repository contains my C++ implementation of a COOL compiler.
@@ -29,3 +27,4 @@ The analyzer reports any semantic errors and annotates the AST with type informa
 ## Assignment 4 - Code Generation
 
 Built a stack machine code generator for the 32-bit MIPS architecture.
+Add AArch64 support in Code Generation
