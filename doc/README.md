@@ -1,7 +1,7 @@
 # COOL Compiler (aarch64)
 
 ## Generate COOL `Lexer/Parser/Semant/Code generator` under aarch64
-> [dockcross: cross compile toolchain](https://github.com/dockcross/dockcross)
+> via [dockcross: cross compile toolchain](https://github.com/dockcross/dockcross)
 
 Lexer
 ```
@@ -25,7 +25,7 @@ mv cgen cgen_aarch64
 ```
 
 ## Compile .cl(COOL) into aarch64 assembly
-> still under dockcross \
+> still under dockcross
 
 `./coolc [your_file.cl] --arch=aarch64` \
 e.g. `./coolc ./examples/cells.cl --arch=aarch64` // No GC
@@ -34,14 +34,16 @@ note: `-g` is `gc` mode. \
 e.g. `./coolc ./examples/cells.cl -g --arch=aarch64`
 
 ## Linked into executable
-`as [your_aarch64.s] -o [your_aarch64.o]`
-`ld as [your_aarch64.s] lib/trap_handler_aarch64.s -o [your_aarch64_exe] -lc`
+```
+as [your_aarch64.s] -o [your_aarch64.o] // assemble
+ld as [your_aarch64.s] lib/trap_handler_aarch64.s -o [your_aarch64_exe] -lc // link
+```
 
 ## Execute 
 > under qemu
-
-`setarch `uname -m` -R ./[your_aarch64_exe]` // temporarily disable ASLR for a particular program
-
+```
+setarch `uname -m` -R ./[your_aarch64_exe] // temporarily disable ASLR for a particular program
+```
 
 ## Known issues
 1. How to work under ASLR ? (fPIC?)
