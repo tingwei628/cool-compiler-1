@@ -1687,6 +1687,8 @@ _GenGC_MinorC_error:
 
  	.globl _GenGC_OfsCopy
 _GenGC_OfsCopy:
+	add sp, sp, #-8
+	str w30, [sp, #0]
     cmp w0, w1
 	//cmp x0, x1
 	b.lt _GenGC_OfsCopy_done // check lower bound
@@ -1764,9 +1766,13 @@ _GenGC_OfsCopy_loop:
 	add w0, w0, w6 // apply pointer offset
 	str w0, [x10, #obj_disp] // save forwarding pointer
 _GenGC_OfsCopy_done:
+	ldr w30, [sp, #0]
+	add sp, sp, #8
 	ret // return
 _GenGC_OfsCopy_forward:
 	ldr w0, [x0, #obj_disp] // get forwarding pointer
+	ldr w30, [sp, #0]
+	add sp, sp, #8
  	ret // return
 
  	.globl _GenGC_MajorC
