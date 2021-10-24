@@ -59,3 +59,7 @@ setarch `uname -m` -R ./[your_aarch64_exe] // temporarily disable ASLR for a par
 2. `stdin`/`stdout` is hardcoded. (Type: `R_AARCH64_COPY`)
 3. `fflush(stdin)` before `fgets` ([problem](https://stackoverflow.com/a/63369562/5321961))
 4. Under GC mode, `Program received signal SIGSEGV, Segmentation fault. _GenGC_MajorC_stackloop () at trap_handler_aarch64.s`
+
+## Reference
+[MIPS_Instruction_Set](https://www.dsi.unive.it/~gasparetto/materials/MIPS_Instruction_Set.pdf)
+[ARMv8 A64 Quick Reference](https://courses.cs.washington.edu/courses/cse469/19wi/arm64.pdf)
