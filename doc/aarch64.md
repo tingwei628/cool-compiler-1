@@ -1,7 +1,7 @@
 
-# [COOL](https://en.wikipedia.org/wiki/Cool_(programming_language)) Compiler under AArch64
+# [COOL](https://en.wikipedia.org/wiki/Cool_(programming_language)) Compiler for AArch64
 
-## Generate COOL `Lexer/Parser/Semant/Cgen(Code generation)` under AArch64
+## Generate COOL `Lexer/Parser/Semant/Cgen(Code generation)` for AArch64
 > via [dockcross: cross compile toolchain](https://github.com/dockcross/dockcross)
 
 Lexer
@@ -30,7 +30,7 @@ mv cgen cgen_aarch64
 ```
 
 ## Compile .cl(COOL) into AArch64 assembly
-> still under dockcross
+>  in dockcross
 
 `./coolc [your_file.cl] --arch=aarch64` \
 e.g. `./coolc ./examples/cells.cl --arch=aarch64` // No GC
@@ -45,7 +45,7 @@ e.g. `./coolc ./examples/cells.cl -g --arch=aarch64`
 
 
 ## Execute 
-> under qemu-system-aarch64
+> via qemu-system-aarch64
 ```
 setarch `uname -m` -R ./[your_aarch64_exe] // temporarily disable ASLR for a particular program
 ```
