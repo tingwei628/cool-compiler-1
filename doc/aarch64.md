@@ -40,9 +40,11 @@ e.g. `./coolc ./examples/cells.cl -g --arch=aarch64`
 
 ## Link into executable
 
-`as [your_aarch64.s] -o [your_aarch64.o]` // assemble \
-`ld as [your_aarch64.s] lib/trap_handler_aarch64.s -o [your_aarch64_exe] -lc` // link
+`as [your_aarch64.s] -o [your_aarch64.o]` // assemble your_aarch64.s \
+`as lib/trap_handler_aarch64.s -o lib/trap_handler_aarch64.o` // assemble lib/trap_handler_aarch64.s \
+`ld [your_aarch64.o] lib/trap_handler_aarch64.o -o [your_aarch64_exe] -lc` // link
 
+note: `lib/trap_handler_aarch64.s` is COOL runtime
 
 ## Execute 
 > via qemu-system-aarch64
